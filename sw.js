@@ -1,9 +1,9 @@
 // Офлайн-кэш приложения. При каждом изменении файлов меняйте версию CACHE.
-const CACHE = 'bus-v5';
+const CACHE = 'bus-v7';
 const TILES = 'bus-tiles';
 const LIB = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/';
 const LIBS = ['https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js', 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css', 'https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js'];
-const ASSETS = ['./', './index.html', './data.json', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
+const ASSETS = ['./', './index.html', './data.json', './places.json', './manifest.webmanifest', './icon-180.png', './icon-192.png', './icon-512.png'];
 
 self.addEventListener('install', e => {
   // cache: 'reload' — берём файлы прямо с сайта, мимо памяти браузера

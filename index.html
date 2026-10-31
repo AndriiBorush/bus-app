@@ -15,25 +15,25 @@
 <style>
 :root{--bg:#0b0d12;--card:#12151c;--line:#232835;--key:#1a1e27;--text:#eef0f4;--muted:#8a909c;--acc:#5aa9ff;--green:#4cc38a;--amber:#f0b35a}
 *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
+html,body{margin:0;height:100%;min-height:calc(100lvh + 1px);background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;overflow:hidden;overscroll-behavior:none}
 button,input{font:inherit;color:inherit}
 button{background:none;border:0;padding:0;cursor:pointer}
 #map{position:fixed;inset:0;background:#0e1014}
 .leaflet-container{background:#0e1014;font:inherit}
 .leaflet-control-attribution{background:rgba(11,13,18,.7)!important;color:#5c626e!important;font-size:9px}
 .leaflet-control-attribution a{color:#6f7b8e!important}
-.leaflet-top{top:calc(env(safe-area-inset-top) + 60px)}
+.leaflet-top{top:calc(env(safe-area-inset-top) + 74px)}
 /* Верх: поиск и связь */
-#top{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 8px);z-index:500;display:flex;gap:8px}
+#top{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 22px);z-index:500;display:flex;gap:8px}
 .glass{background:rgba(18,21,28,.88);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:16px}
 #q{flex:1;min-width:0;height:46px;padding:0 14px;font-size:16px;outline:none;-webkit-appearance:none}
 #q::placeholder{color:var(--muted)}
 .ib{width:46px;height:46px;flex:none;display:grid;place-items:center}
 .ib svg{width:21px;height:21px}
-#live{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 62px);z-index:400;font-size:12px;padding:5px 10px;border-radius:20px;color:var(--muted);white-space:nowrap}
+#live{position:fixed;left:50%;transform:translateX(-50%);top:calc(env(safe-area-inset-top) + 76px);z-index:400;font-size:12px;padding:5px 10px;border-radius:20px;color:var(--muted);white-space:nowrap}
 #live i{display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--muted);margin-right:6px;vertical-align:1px}
 #live.on i{background:var(--green)}
-#res{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 62px);z-index:600;max-height:55vh;overflow-y:auto;display:none}
+#res{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 76px);z-index:600;max-height:55vh;overflow-y:auto;display:none}
 #res.on{display:block}
 /* Справа: кнопка «где я» */
 #side{position:fixed;right:12px;bottom:50vh;z-index:450;overflow:hidden}
@@ -41,6 +41,8 @@ button{background:none;border:0;padding:0;cursor:pointer}
 #side svg{width:21px;height:21px}
 /* Нижняя панель */
 #sheet{position:fixed;left:0;right:0;bottom:0;z-index:500;border-radius:22px 22px 0 0;border-bottom:0;display:flex;flex-direction:column;max-height:46vh;transition:max-height .25s;padding-bottom:env(safe-area-inset-bottom)}
+/* Фон панели продолжается под низ экрана: на iPhone с экрана «Домой» иначе остаётся щель */
+#sheet:after{content:"";position:absolute;left:-1px;right:-1px;top:100%;height:200px;background:inherit;-webkit-backdrop-filter:inherit;backdrop-filter:inherit}
 #sheet.big{max-height:82vh}
 #sheet.mini{max-height:calc(26px + env(safe-area-inset-bottom))}
 #grab{height:24px;flex:none;display:grid;place-items:center;width:100%}
@@ -91,8 +93,39 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .field{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:0 12px;font-size:15px;outline:none}
 textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 /* Метки на карте */
-.bus{width:34px;height:22px;border-radius:7px;background:hsl(var(--h) 60% 52%);color:#081018;font-weight:800;font-size:12px;display:grid;place-items:center;border:2px solid #0b0d12;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.bus{position:relative;width:30px;height:30px}
+.bus b{position:absolute;inset:0;border-radius:50%;background:hsl(var(--h) 62% 55%);color:#081018;font-weight:800;font-size:12px;letter-spacing:-.3px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.55);z-index:1}
+/* «Нос» — куда едет автобус; поворачивается вокруг метки */
+.bus i{position:absolute;inset:-8px;transition:transform .8s ease}
+.bus i:before{content:"";position:absolute;left:50%;top:0;margin-left:-6px;border:6px solid transparent;border-top:0;border-bottom:9px solid #fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
+.bus.nodir i{display:none}
 .bus.park{opacity:.35}
+.busmk{transition:transform 1.4s linear}
+.zooming .busmk{transition:none}
+/* Остановка вблизи: тёмная плашка с золотым автобусом, как иконка приложения */
+.stp{width:22px;height:22px;border-radius:7px;background:#14171e;border:1.5px solid rgba(232,201,156,.75);display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.stp svg{width:12px;height:12px;color:#e8c99c}
+.stp.sel{width:30px;height:30px;border-radius:9px;background:#e8c99c;border-color:#fff}
+.stp.sel svg{width:16px;height:16px;color:#14171e}
+.pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);background:#e8c99c;border:2px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.5)}
+.pin:after{content:"";position:absolute;left:8px;top:8px;width:10px;height:10px;border-radius:50%;background:#14171e}
+/* Поездка */
+.opt{display:block;width:100%;text-align:left;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;margin-bottom:8px}
+.opt.on{border-color:rgba(232,201,156,.6)}
+.opt .top{display:flex;align-items:baseline;gap:8px}
+.opt .top b{font-size:20px}
+.opt .top span{color:var(--muted);font-size:14px}
+.opt .top em{margin-left:auto;font-style:normal;font-size:13px;color:var(--green);font-weight:600}
+.legs{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-top:8px;font-size:13px;color:var(--muted)}
+.legs .num{min-width:34px;height:24px;font-size:13px;border-radius:7px}
+.legs svg{width:14px;height:14px;vertical-align:-2px}
+.steps{margin:4px 0 0;padding:0}
+.step{display:flex;gap:12px;align-items:flex-start;padding:9px 2px;font-size:15px;line-height:1.35}
+.step+.step{border-top:1px solid var(--line)}
+.step .ic{flex:none;width:42px;display:grid;place-items:center;color:var(--muted)}
+.step .ic svg{width:18px;height:18px}
+.step .m{color:var(--muted);font-size:13px}
+.step .g{color:var(--green);font-weight:600}
 .me-dot{width:16px;height:16px;border-radius:50%;background:var(--acc);border:3px solid #fff;box-shadow:0 0 0 6px rgba(90,169,255,.25)}
 #toast{position:fixed;left:50%;top:calc(env(safe-area-inset-top) + 100px);transform:translateX(-50%);background:#262b36;padding:9px 14px;border-radius:12px;font-size:14px;opacity:0;transition:opacity .2s;z-index:900;pointer-events:none}
 #toast.on{opacity:1}
@@ -101,7 +134,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <body>
 <div id="map"></div>
 <div id="top">
-  <input id="q" class="glass" type="search" placeholder="Остановка или номер" autocomplete="off">
+  <input id="q" class="glass" type="search" placeholder="Куда едем?" autocomplete="off">
   <button class="glass ib" id="setBtn" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
 </div>
 <div id="live" class="glass"><i></i><span>Загрузка…</span></div>
@@ -115,7 +148,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <script>
 const KEY = 'bus-data';
 // Версия приложения — называть Андрею перед каждой публикацией
-const VERSION = '2.0';
+const VERSION = '2.2';
 // Адрес посредника (Cloudflare Worker); можно поменять в настройках
 const DEFAULT_LIVE = 'https://bus-proxy.andriiborush.workers.dev';
 // Метров по прямой в минуту — средняя скорость городского автобуса с остановками
@@ -124,9 +157,13 @@ const ICON = {
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>',
-  bus: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2v2h-3v-2H9v2H6v-2a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 3v5h12V6z"/></svg>'
+  bus: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2v2h-3v-2H9v2H6v-2a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 3v5h12V6z"/></svg>',
+  walk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.5" r="1.6" fill="currentColor"/><path d="M10 21l2-6 3 3v3M9 12l2-4 4 2 2 3M11 8l-3 2-1 3"/></svg>',
+  flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 21V4M6 4h11l-2 4 2 4H6"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'
 };
-let D, map, stopLayer, routeLayer, busLayer, meMarker;
+let P = null; // адреса и места — грузятся при первом поиске
+let D, map, stopLayer, stopIcons, routeLayer, busLayer, meMarker;
 let S = load();
 let me = S.last || null;
 let buses = [], liveOk = false, fails = 0;
@@ -191,7 +228,9 @@ function placeBuses(list) {
   return list.filter(b => {
     const r = D.byId[b.r]; if (!r) return false;
     b.route = r;
-    const h = hist[b.p] || (hist[b.p] = { la: b.la, lo: b.lo, moved: t, first: t, at: [] });
+    const h = hist[b.p] || (hist[b.p] = { la: b.la, lo: b.lo, pla: b.la, plo: b.lo, moved: t, first: t, at: [] });
+    // Курс — по тому, куда автобус сдвинулся с прошлого раза
+    if (dist(h.pla, h.plo, b.la, b.lo) > 8) { h.head = bearing(h.pla, h.plo, b.la, b.lo); h.pla = b.la; h.plo = b.lo; }
     if (dist(h.la, h.lo, b.la, b.lo) > 25) { h.moved = t; h.la = b.la; h.lo = b.lo; }
     // Стоит больше 10 минут — скорее всего закончил смену
     b.park = t - h.moved > 600000;
@@ -208,8 +247,16 @@ function placeBuses(list) {
     pr.forEach((p, i) => h.at[i] = p.at);
     h.dir = di;
     b.d = r.dirs[di]; b.at = pr[di].at; b.off = pr[di].m;
+    // Пока автобус не сдвинулся — курс по участку маршрута, на котором он стоит
+    b.head = h.head != null ? h.head : segHead(b.d, b.at);
     return true;
   });
+}
+function bearing(a, b, c, d) { const k = Math.PI / 180; return (Math.atan2((d - b) * Math.cos(a * k), c - a) / k + 360) % 360; }
+function segHead(d, at) {
+  let k = 0; while (k < d.st.length - 2 && d.at[k + 1] < at) k++;
+  const a = D.stops[d.st[k]], b = D.stops[d.st[k + 1]];
+  return bearing(a.la, a.lo, b.la, b.lo);
 }
 // Через сколько минут автобусы направления будут у остановки k
 function liveEta(d, k) {
@@ -237,14 +284,32 @@ function initMap() {
   stopLayer = L.layerGroup().addTo(map);
   routeLayer = L.layerGroup().addTo(map);
   busLayer = L.layerGroup().addTo(map);
+  stopIcons = L.layerGroup().addTo(map);
   D.stops.forEach(s => {
-    s.mk = L.circleMarker([s.la, s.lo], { radius: 4, weight: 2, color: '#8fb8e8', fillColor: '#0b0d12', fillOpacity: 1 }).addTo(stopLayer).on('click', () => go({ k: 'stop', s: s.i }));
+    s.mk = L.circleMarker([s.la, s.lo], { radius: 3, weight: 1.5, color: '#0b0d12', fillColor: '#e8c99c', fillOpacity: 1 }).addTo(stopLayer).on('click', () => go({ k: 'stop', s: s.i }));
   });
-  map.on('zoomend', stopSize);
+  map.on('zoomend moveend', stopSize);
+  // Пока карта меняет масштаб, автобусы не «плывут», а сразу встают на место
+  map.on('zoomstart', () => document.body.classList.add('zooming'));
+  map.on('zoomend', () => setTimeout(() => document.body.classList.remove('zooming'), 50));
+  map.on('contextmenu', e => go({ k: 'trip', to: { n: 'Точка на карте', la: e.latlng.lat, lo: e.latlng.lng }, opt: 0 }));
   stopSize();
   drawMe();
 }
-function stopSize() { const z = map.getZoom(), r = z >= 16 ? 5.5 : z >= 14 ? 4 : 2.5; D.stops.forEach(s => s.mk.setRadius(r)); }
+// Издалека — золотые точки; вблизи — плашки с автобусом (только те, что на экране)
+function stopSize() {
+  const z = map.getZoom(), hide = view.k === 'route' || view.k === 'trip';
+  const near = z >= 16 && !hide;
+  D.stops.forEach(s => s.mk.setStyle({ opacity: hide || near ? 0 : 1, fillOpacity: hide || near ? 0 : 1, radius: z >= 15 ? 4 : z >= 13 ? 3 : 2 }));
+  stopIcons.clearLayers();
+  if (!near) return;
+  const b = map.getBounds().pad(0.2);
+  D.stops.forEach(s => {
+    if (!b.contains([s.la, s.lo])) return;
+    const sel = view.k === 'stop' && view.s === s.i;
+    L.marker([s.la, s.lo], { icon: L.divIcon({ className: '', html: `<div class="stp${sel ? ' sel' : ''}">${ICON.bus}</div>`, iconSize: sel ? [30, 30] : [22, 22] }), zIndexOffset: sel ? 400 : 0 }).addTo(stopIcons).on('click', () => go({ k: 'stop', s: s.i }));
+  });
+}
 function drawMe() {
   if (!me) return;
   if (!meMarker) meMarker = L.marker([me.la, me.lo], { icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [16, 16] }), interactive: false, zIndexOffset: 1000 }).addTo(map);
@@ -252,32 +317,80 @@ function drawMe() {
 }
 function drawBuses() {
   const r = view.k === 'route' ? D.routes[view.r] : null;
+  // В поездке — только автобусы выбранного варианта
+  const tr = view.k === 'trip' ? new Set(((tripPlans()[view.opt] || {}).legs || []).map(l => l.d.r)) : null;
   const seen = {};
   for (const b of buses) {
     if (r && b.route !== r) continue;
+    if (tr && !tr.has(b.route)) continue;
     seen[b.p] = 1;
     let m = busMarkers[b.p];
-    const html = `<div class="bus${b.park ? ' park' : ''}" style="--h:${b.route.h}">${esc(b.route.ref)}</div>`;
+    const html = `<div class="bus${b.park ? ' park' : ''}" style="--h:${b.route.h}"><i></i><b>${esc(b.route.ref)}</b></div>`;
     if (!m) {
-      m = busMarkers[b.p] = L.marker([b.la, b.lo], { icon: L.divIcon({ className: '', html, iconSize: [34, 22] }), zIndexOffset: 500 }).addTo(busLayer);
+      m = busMarkers[b.p] = L.marker([b.la, b.lo], { icon: L.divIcon({ className: 'busmk', html, iconSize: [30, 30] }), zIndexOffset: 500 }).addTo(busLayer);
       m.on('click', () => { const x = buses.find(y => y.p === b.p); if (x) go({ k: 'route', r: x.route.i, d: x.d.i }); });
     } else {
       m.setLatLng([b.la, b.lo]);
-      if (m._h !== html) m.setIcon(L.divIcon({ className: '', html, iconSize: [34, 22] }));
+      if (m._h !== html) m.setIcon(L.divIcon({ className: 'busmk', html, iconSize: [30, 30] }));
     }
     m._h = html;
+    // Поворачиваем «нос» без перерисовки метки — так он плавно доворачивает
+    const nose = m.getElement() && m.getElement().querySelector('i');
+    if (nose) {
+      const prev = m._deg ?? b.head;
+      const deg = prev + ((b.head - prev + 540) % 360 - 180);
+      m._deg = deg;
+      nose.style.transform = `rotate(${deg}deg)`;
+    }
   }
   for (const p in busMarkers) if (!seen[p]) { busLayer.removeLayer(busMarkers[p]); delete busMarkers[p]; }
 }
 function drawRoute() {
   routeLayer.clearLayers();
-  const on = view.k === 'route';
-  D.stops.forEach(s => s.mk.setStyle({ opacity: on ? 0 : 1, fillOpacity: on ? 0 : 1 }));
-  if (view.k === 'stop') { const s = D.stops[view.s]; L.circleMarker([s.la, s.lo], { radius: 11, weight: 3, color: '#5aa9ff', fillColor: '#5aa9ff', fillOpacity: .35, interactive: false }).addTo(routeLayer); }
-  if (!on) return;
+  stopSize();
+  if (view.k === 'stop' && map.getZoom() < 16) { const s = D.stops[view.s]; L.marker([s.la, s.lo], { icon: L.divIcon({ className: '', html: `<div class="stp sel">${ICON.bus}</div>`, iconSize: [30, 30] }), interactive: false }).addTo(routeLayer); }
+  if (view.k === 'trip') return drawTrip();
+  if (view.k !== 'route') return;
   const r = D.routes[view.r], d = r.dirs[view.d], col = `hsl(${r.h} 60% 55%)`;
   L.polyline(r.line, { color: col, weight: 5, opacity: .85, interactive: false }).addTo(routeLayer);
   d.st.forEach(si => { const s = D.stops[si]; L.circleMarker([s.la, s.lo], { radius: si === view.hi ? 7 : 5, weight: 2, color: col, fillColor: si === view.hi ? col : '#0b0d12', fillOpacity: 1 }).addTo(routeLayer).on('click', () => go({ k: 'stop', s: si })); });
+}
+// Кусок линии маршрута между двумя остановками направления
+function ridePath(d, k, j) {
+  const L0 = d.r.line, n = L0.length;
+  if (n < 2) return d.st.slice(k, j + 1).map(si => [D.stops[si].la, D.stops[si].lo]);
+  const near = s => { let bi = 0, bm = 1e9; L0.forEach((p, i) => { const m = dist(p[0], p[1], s.la, s.lo); if (m < bm) { bm = m; bi = i; } }); return bi; };
+  const idx = d.st.slice(k, j + 1).map(si => near(D.stops[si]));
+  const out = [];
+  for (let q = 0; q < idx.length - 1; q++) {
+    const a = idx[q], b = idx[q + 1], fw = (b - a + n) % n, bw = (a - b + n) % n;
+    // Между соседними остановками идём по линии коротким путём
+    const seg = [];
+    if (fw <= bw) for (let x = 0; x <= fw; x++) seg.push(L0[(a + x) % n]);
+    else for (let x = 0; x <= bw; x++) seg.push(L0[(a - x + n) % n]);
+    // Линия ушла в петлю (намного длиннее прямой) — рисуем напрямую между остановками
+    const s1 = D.stops[d.st[k + q]], s2 = D.stops[d.st[k + q + 1]];
+    let len = 0; for (let x = 1; x < seg.length; x++) len += dist(seg[x - 1][0], seg[x - 1][1], seg[x][0], seg[x][1]);
+    if (len > 2 * dist(s1.la, s1.lo, s2.la, s2.lo) + 250) out.push([s1.la, s1.lo], [s2.la, s2.lo]);
+    else out.push(...seg);
+  }
+  return out;
+}
+function drawTrip() {
+  const pl = tripPlans(), o = pl[view.opt];
+  const to = view.to, from = tripFrom();
+  L.marker([to.la, to.lo], { icon: L.divIcon({ className: '', html: '<div class="pin"></div>', iconSize: [30, 30], iconAnchor: [4, 34] }), interactive: false, zIndexOffset: 900 }).addTo(routeLayer);
+  if (!o) return;
+  const dash = { color: '#eef0f4', weight: 3, opacity: .8, dashArray: '2 7', lineCap: 'round', interactive: false };
+  let cur = [from.la, from.lo];
+  o.legs.forEach(l => {
+    const a = D.stops[l.d.st[l.k]], b = D.stops[l.d.st[l.j]];
+    L.polyline([cur, [a.la, a.lo]], dash).addTo(routeLayer);
+    L.polyline(ridePath(l.d, l.k, l.j), { color: `hsl(${l.d.r.h} 62% 55%)`, weight: 6, opacity: .95, interactive: false }).addTo(routeLayer);
+    [a, b].forEach(s => L.circleMarker([s.la, s.lo], { radius: 6, weight: 3, color: `hsl(${l.d.r.h} 62% 55%)`, fillColor: '#0b0d12', fillOpacity: 1, interactive: false }).addTo(routeLayer));
+    cur = [b.la, b.lo];
+  });
+  L.polyline([cur, [to.la, to.lo]], dash).addTo(routeLayer);
 }
 
 // ---------- Живые данные ----------
@@ -314,6 +427,7 @@ function open() {
     const pad = { paddingTopLeft: [20, 110], paddingBottomRight: [20, sheetH() + 20] };
     if (view.k === 'stop') { const s = D.stops[view.s]; map.fitBounds(L.latLng(s.la, s.lo).toBounds(500), pad); }
     if (view.k === 'route') map.fitBounds(L.latLngBounds(D.routes[view.r].line), pad);
+    if (view.k === 'trip') { const f = tripFrom(); map.fitBounds(L.latLngBounds([[f.la, f.lo], [view.to.la, view.to.lo]]), pad); }
     placeSide();
   }, 280);
 }
@@ -323,7 +437,7 @@ function placeSide() { $('side').style.bottom = (sheetH() + 12) + 'px'; }
 function refresh() { const a = document.activeElement; if (!(a && a.tagName === 'INPUT' || a && a.tagName === 'TEXTAREA')) render(true); }
 function render(keep) {
   const y = $('body').scrollTop;
-  $('body').innerHTML = view.k === 'stop' ? stopView() : view.k === 'route' ? routeView() : view.k === 'set' ? setView() : homeView();
+  $('body').innerHTML = view.k === 'stop' ? stopView() : view.k === 'route' ? routeView() : view.k === 'trip' ? tripView() : view.k === 'set' ? setView() : homeView();
   if (keep) $('body').scrollTop = y;
   placeSide();
 }
@@ -359,10 +473,6 @@ function homeView() {
   let h = '';
   const favs = S.fav.map(i => D.stops[i]).filter(Boolean);
   if (favs.length) h += `<div class="sec">Избранное</div><div class="list">${favs.map(stopCard).join('')}</div>`;
-  if (me) {
-    const near = D.stops.filter(s => !S.fav.includes(s.i)).map(s => [s, dist(me.la, me.lo, s.la, s.lo)]).sort((a, b) => a[1] - b[1]).slice(0, 3).map(x => x[0]);
-    h += `<div class="sec">Рядом</div><div class="list">${near.map(stopCard).join('')}</div>`;
-  }
   h += `<div class="sec">Маршруты</div><div class="chips">${D.routes.map(r => `<button data-route="${r.i}">${numHtml(r)}</button>`).join('')}</div>`;
   return h;
 }
@@ -371,7 +481,7 @@ function stopView() {
   const m = me ? dist(me.la, me.lo, s.la, s.lo) : null;
   let h = head(esc(s.n), `№${s.c}${m != null ? ' · ' + fmtD(m) + ', ' + walk(m) + ' мин пешком' : ''}`, `<button class="rb${on ? ' on' : ''}" data-fav="${s.i}">${ICON.star}</button>`);
   h += `<div class="list">${stopRowsStable(s).map(x => `<button class="row" data-route="${x.d.r.i}" data-dir="${x.d.i}" data-hi="${s.i}">${numHtml(x.d.r)}<div class="info"><div class="t">→ ${esc(x.d.to)}</div></div>${etaHtml(x)}</button>`).join('')}</div>`;
-  h += `<div class="btns"><a class="btn" href="https://maps.apple.com/?daddr=${s.la},${s.lo}&dirflg=w" target="_blank">Дойти пешком</a></div>`;
+  h += `<div class="btns"><button class="btn" data-tripstop="${s.i}">Поехать сюда</button><a class="btn" href="https://maps.apple.com/?daddr=${s.la},${s.lo}&dirflg=w" target="_blank">Дойти пешком</a></div>`;
   h += `<div class="note">Зелёным — по живым координатам автобусов, белым — по расписанию.</div>`;
   return h;
 }
@@ -404,6 +514,106 @@ function routeView() {
   }).join('') + `</div>`;
   return h;
 }
+// ---------- Поездка ----------
+function tripFrom() { const p = me || S.last; return p ? { n: 'Я здесь', la: p.la, lo: p.lo } : (() => { const c = map.getCenter(); return { n: 'Центр карты', la: c.lat, lo: c.lng }; })(); }
+// Сколько ждать автобус направления d у остановки k, если я буду там через w минут
+function waitAt(d, k, w) {
+  const live = liveEta(d, k).find(m => m >= w);
+  if (live != null) return { w: live, live: true };
+  const now = nowMin(), t = (d.t[k] || []).find(x => x - now >= w);
+  if (t != null) return { w: t - now, live: false, i: d.t[k].indexOf(t) };
+  return null;
+}
+// Время в пути от k до j: по расписанию того же рейса, иначе по расстоянию
+function rideMin(d, k, j, i) {
+  const a = d.t[k], b = d.t[j];
+  if (i != null && a && b && a.length === b.length && b[i] > a[i]) return b[i] - a[i];
+  return (d.at[j] - d.at[k]) / SPEED + 0.4 * (j - k);
+}
+let planCache = null;
+function tripPlans() {
+  const from = tripFrom(), to = view.to;
+  const key = [from.la, from.lo, to.la, to.lo, Math.floor(nowMin()), buses.length].join();
+  if (planCache && planCache.key === key) return planCache.res;
+  const res = plan(from, to);
+  planCache = { key, res };
+  return res;
+}
+function plan(from, to) {
+  const R = 900;
+  const A = D.stops.map(s => [s, dist(from.la, from.lo, s.la, s.lo)]).filter(x => x[1] < R).sort((a, b) => a[1] - b[1]).slice(0, 14);
+  const Bm = new Map(D.stops.map(s => [s.i, dist(to.la, to.lo, s.la, s.lo)]).filter(x => x[1] < R));
+  const out = [];
+  // Прямые варианты: сел — вышел
+  for (const [s, ma] of A) for (const [d, k] of s.on) {
+    const wa = walk(ma), w = waitAt(d, k, wa); if (!w) continue;
+    let best = null;
+    for (let j = k + 1; j < d.st.length; j++) {
+      const mb = Bm.get(d.st[j]); if (mb == null) continue;
+      const tt = wa + Math.max(0, w.w - wa) + rideMin(d, k, j, w.i) + walk(mb);
+      if (!best || tt < best.t) best = { t: tt, legs: [{ d, k, j, w }], wa, wb: walk(mb) };
+    }
+    if (best) out.push(best);
+  }
+  // С одной пересадкой — если прямых мало
+  if (out.length < 2) {
+    for (const [s, ma] of A.slice(0, 8)) for (const [d1, k1] of s.on) {
+      const wa = walk(ma), w1 = waitAt(d1, k1, wa); if (!w1) continue;
+      for (let j1 = k1 + 1; j1 < d1.st.length; j1++) {
+        const x = D.stops[d1.st[j1]];
+        const t1 = Math.max(wa, w1.w) + rideMin(d1, k1, j1, w1.i);
+        for (const y of nearStops(x)) for (const [d2, k2] of y.on) {
+          if (d2.r === d1.r) continue;
+          const wt = walk(dist(x.la, x.lo, y.la, y.lo)), w2 = waitAt(d2, k2, t1 + wt); if (!w2) continue;
+          for (let j2 = k2 + 1; j2 < d2.st.length; j2++) {
+            const mb = Bm.get(d2.st[j2]); if (mb == null) continue;
+            const tt = w2.w + rideMin(d2, k2, j2, w2.i) + walk(mb);
+            out.push({ t: tt, legs: [{ d: d1, k: k1, j: j1, w: w1 }, { d: d2, k: k2, j: j2, w: w2 }], wa, wb: walk(mb) });
+            break;
+          }
+        }
+      }
+    }
+  }
+  // Лучший вариант на каждый набор номеров, три самых быстрых
+  const best = {};
+  for (const o of out) { const k = o.legs.map(l => l.d.r.id + l.d.i).join('>'); if (!best[k] || o.t < best[k].t) best[k] = o; }
+  const res = Object.values(best).sort((a, b) => a.t - b.t).slice(0, 3);
+  const direct = dist(from.la, from.lo, to.la, to.lo);
+  // Пешком — если близко или быстрее любого автобуса
+  if (direct < 2000 && (!res.length || walk(direct) <= res[0].t)) res.unshift({ t: walk(direct), legs: [], wa: walk(direct), wb: 0 });
+  return res.slice(0, 3);
+}
+function nearStops(x) {
+  if (!x.nb) x.nb = D.stops.filter(y => dist(x.la, x.lo, y.la, y.lo) < 180);
+  return x.nb;
+}
+function tripView() {
+  const to = view.to, from = tripFrom(), pl = tripPlans();
+  let h = head(esc(to.n), `от: ${esc(from.n)}`);
+  if (!pl.length) return h + `<div class="empty">Не нашёл автобуса в пределах 900 м от начала и конца пути. Попробуйте другую точку.</div>`;
+  const now = nowMin();
+  h += pl.map((o, i) => {
+    const legs = o.legs.length ? `<span>${ICON.walk} ${o.wa}</span>` + o.legs.map(l => ` › ${numHtml(l.d.r)}`).join('') + `<span> › ${ICON.walk} ${o.wb}</span>` : `<span>${ICON.walk} только пешком</span>`;
+    const l0 = o.legs[0];
+    const go = l0 ? (l0.w.live ? `<em>через ${mins(l0.w.w)}</em>` : `<em style="color:var(--muted)">в ${hhmm(now + l0.w.w)}</em>`) : '';
+    return `<button class="opt${i === view.opt ? ' on' : ''}" data-opt="${i}"><div class="top"><b>${hhmm(now + o.t)}</b><span>${Math.round(o.t)} мин</span>${go}</div><div class="legs">${legs}</div></button>`;
+  }).join('');
+  const o = pl[view.opt] || pl[0];
+  // Шаги выбранного варианта — коротко
+  let st = '';
+  if (!o.legs.length) st = `<div class="step"><div class="ic">${ICON.walk}</div><div>Пешком до места<div class="m">${o.wa} мин</div></div></div>`;
+  o.legs.forEach((l, q) => {
+    const a = D.stops[l.d.st[l.k]], b = D.stops[l.d.st[l.j]];
+    const walkTo = q === 0 ? `${o.wa} мин` : 'пересадка';
+    st += `<div class="step"><div class="ic">${ICON.walk}</div><div>${q === 0 ? 'Дойти до' : 'Перейти на'} «${esc(a.n)}»<div class="m">${walkTo}</div></div></div>`;
+    st += `<div class="step"><div class="ic">${numHtml(l.d.r)}</div><div>→ ${esc(l.d.to)}<div class="m">${l.w.live ? `<span class="g">через ${mins(l.w.w)}</span>` : `по плану в ${hhmm(now + l.w.w)}`} · ${l.j - l.k} ост.</div></div></div>`;
+    st += `<div class="step"><div class="ic">${ICON.flag}</div><div>Выйти на «${esc(b.n)}»</div></div>`;
+  });
+  if (o.legs.length) st += `<div class="step"><div class="ic">${ICON.walk}</div><div>Пешком до места<div class="m">${o.wb} мин</div></div></div>`;
+  return h + `<div class="steps">${st}</div>`;
+}
+
 function setView() {
   return head('Настройки') + `<div class="sec">Живые автобусы</div><input class="field" id="liveUrl" placeholder="https://bus-proxy.….workers.dev" value="${esc(S.live || '')}" autocomplete="off" autocapitalize="off" spellcheck="false"><div class="btns"><button class="btn" id="liveSave">Сохранить адрес</button></div>
   <div class="note">Координаты и расписание — с сервера перевозчика (thetamaps.site): без ключа, но и без официального соглашения, может перестать работать. Названия и карта — OpenStreetMap, OpenFreeMap.</div>
@@ -420,7 +630,14 @@ function search() {
   const ss = D.stops.filter(s => s.n.toLowerCase().includes(v) || String(s.c) === v)
     .filter(s => { const k = s.n + Math.round(s.la * 300) + Math.round(s.lo * 300); return !seen[k] && (seen[k] = 1); })
     .map(s => [s, me ? dist(me.la, me.lo, s.la, s.lo) : 0]).sort((a, b) => a[1] - b[1]).slice(0, 30);
+  // Адреса и места: от трёх букв, сначала ближайшие
+  let ps = [];
+  if (v.length >= 3) {
+    if (!P) { fetch('places.json').then(r => r.json()).then(j => { P = j; search(); }); }
+    else ps = P.filter(x => x[0].toLowerCase().includes(v)).map(x => [x, me ? dist(me.la, me.lo, x[1], x[2]) : 0]).sort((a, b) => (a[0][3] === 2) - (b[0][3] === 2) || a[1] - b[1]).slice(0, 25);
+  }
   el.innerHTML = rs.map(r => `<button class="row" data-route="${r.i}">${numHtml(r)}<div class="info"><div class="t">Маршрут ${esc(r.ref)}</div><div class="s">${r.dirs.map(d => esc(d.to)).join(' ⇄ ')}</div></div></button>`).join('')
+    + ps.map(([x, m]) => `<button class="row" data-place="${esc(JSON.stringify(x))}"><span class="rb">${ICON.pin}</span><div class="info"><div class="t">${esc(x[0])}</div><div class="s">${['место', 'улица', 'дом'][x[3]]}</div></div>${me ? `<div class="eta">${fmtD(m)}</div>` : ''}</button>`).join('')
     + ss.map(([s, m]) => `<button class="row" data-stop="${s.i}"><div class="info"><div class="t">${esc(s.n)}</div><div class="chips">${refsAt(s).map(numHtml).join('')}</div></div>${me ? `<div class="eta">${fmtD(m)}</div>` : ''}</button>`).join('')
     || '<div class="row"><div class="info"><div class="s">Ничего не нашлось</div></div></div>';
   el.classList.add('on');
@@ -438,7 +655,7 @@ function locate(fly) {
 
 document.addEventListener('click', e => {
   const t = e.target.closest('button,a'); if (!t) return;
-  if (t.id === 'grab') { const sh = $('sheet'); if (sh.classList.contains('mini')) sh.classList.remove('mini'); else sh.classList.toggle('big'); setTimeout(placeSide, 260); return; }
+  if (t.id === 'grab') { const sh = $('sheet'); sh.classList.remove('big'); sh.classList.toggle('mini'); setTimeout(placeSide, 260); return; }
   if (t.hasAttribute('data-back')) return goBack();
   if (t.hasAttribute('data-home')) { back = []; view = { k: 'home' }; return open(); }
   if (t.id === 'meBtn') return locate(true);
@@ -456,6 +673,9 @@ document.addEventListener('click', e => {
     return go(v);
   }
   if (t.dataset.stop != null) { $('q').value = ''; $('q').blur(); return go({ k: 'stop', s: +t.dataset.stop }); }
+  if (t.dataset.place != null) { const x = JSON.parse(t.dataset.place); $('q').value = ''; $('q').blur(); return go({ k: 'trip', to: { n: x[0], la: x[1], lo: x[2] }, opt: 0 }); }
+  if (t.dataset.tripstop != null) { const s = D.stops[+t.dataset.tripstop]; return go({ k: 'trip', to: { n: s.n, la: s.la, lo: s.lo }, opt: 0 }); }
+  if (t.dataset.opt != null) { view.opt = +t.dataset.opt; drawRoute(); drawBuses(); return render(true); }
   if (t.id === 'liveSave') { S.live = $('liveUrl').value.trim(); save(); fails = 0; $('liveUrl').blur(); toast('Сохранено'); poll(); return; }
   if (t.id === 'bk') { const s = JSON.stringify({ fav: S.fav }); $('bkt').value = s; $('bkt').select(); try { navigator.clipboard.writeText(s); toast('Скопировано'); } catch (er) { toast('Выделено — скопируйте'); } return; }
   if (t.id === 'rs') { try { S.fav = JSON.parse($('bkt').value).fav || []; save(); toast('Восстановлено'); } catch (er) { toast('Не похоже на копию'); } return; }
