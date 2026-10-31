@@ -46,14 +46,20 @@ button{background:none;border:0;padding:0;cursor:pointer}
 #side button{width:46px;height:46px;display:grid;place-items:center;color:var(--acc)}
 #side svg{width:21px;height:21px}
 /* Нижняя панель */
-#sheet{position:fixed;left:0;right:0;bottom:0;z-index:500;border-radius:22px 22px 0 0;border-bottom:0;display:flex;flex-direction:column;max-height:46vh;transition:max-height .25s;padding-bottom:env(safe-area-inset-bottom)}
+#sheet{position:fixed;left:0;right:0;bottom:0;z-index:500;border-radius:22px 22px 0 0;border-bottom:0;display:flex;flex-direction:column;max-height:46vh;transition:max-height .25s,transform .22s,opacity .22s;padding-bottom:env(safe-area-inset-bottom)}
+/* Закрытая главная панель уезжает вниз; открыть — кнопкой справа */
+#sheet.off{transform:translateY(calc(100% + 40px))}
+#side #panBtn{display:none;border-bottom:1px solid var(--line)}
+body.off #side #panBtn{display:grid}
 /* Фон панели продолжается под низ экрана: на iPhone с экрана «Домой» иначе остаётся щель */
 #sheet:after{content:"";position:absolute;left:-1px;right:-1px;top:100%;height:200px;background:inherit;-webkit-backdrop-filter:inherit;backdrop-filter:inherit}
 #sheet.big{max-height:82vh}
 #sheet.mini{max-height:calc(26px + env(safe-area-inset-bottom))}
-#grab{height:30px;flex:none;display:grid;place-items:center;width:100%;touch-action:none}
+#grab{height:14px;flex:none;display:grid;place-items:center;width:100%;touch-action:none}
 #sheet.drag{transition:none}
-#grab:after{content:"";width:38px;height:5px;border-radius:3px;background:#3a3f4c}
+/* Полоска видна только у свёрнутой панели — чтобы было за что взяться */
+#sheet.mini #grab{height:26px}
+#sheet.mini #grab:after{content:"";width:38px;height:5px;border-radius:3px;background:#3a3f4c}
 #body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px 16px;flex:1}
 .hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
 .hd .tt{flex:1;min-width:0}
@@ -156,7 +162,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 </div>
 <div id="live" class="glass"><i></i><span>Загрузка…</span></div>
 <div id="res" class="glass"></div>
-<div id="side" class="glass"><button id="meBtn" aria-label="Где я"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button></div>
+<div id="side" class="glass"><button id="panBtn" aria-label="Открыть панель"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M5 7h14M5 12h14M5 17h14"/></svg></button><button id="meBtn" aria-label="Где я"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg></button></div>
 <div id="sheet" class="glass"><button id="grab" aria-label="Развернуть"></button><div id="body"></div></div>
 <div id="toast"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
@@ -165,7 +171,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <script>
 const KEY = 'bus-data';
 // Версия приложения — называть Андрею перед каждой публикацией
-const VERSION = '2.4';
+const VERSION = '2.5';
 // Адрес посредника (Cloudflare Worker); можно поменять в настройках
 const DEFAULT_LIVE = 'https://bus-proxy.andriiborush.workers.dev';
 // Метров по прямой в минуту — средняя скорость городского автобуса с остановками
@@ -469,19 +475,35 @@ function goBack() { view = back.pop() || { k: 'home' }; open(); }
 function open() {
   $('res').classList.remove('on');
   $('sheet').classList.remove('mini');
+  showSheet();
   drawRoute(); drawBuses(); render();
   $('body').scrollTop = 0;
   // Ждём, пока панель раскроется, иначе карта уйдёт под неё
   setTimeout(() => {
     const pad = { paddingTopLeft: [20, 110], paddingBottomRight: [20, sheetH() + 20] };
-    if (view.k === 'stop') { const s = D.stops[view.s]; map.fitBounds(L.latLng(s.la, s.lo).toBounds(500), pad); }
+    if (view.k === 'stop') { const s = D.stops[view.s]; showPoint(s.la, s.lo); }
     if (view.k === 'route') map.fitBounds(L.latLngBounds(D.routes[view.r].line), pad);
     if (view.k === 'trip') { const f = tripFrom(); map.fitBounds(L.latLngBounds([[f.la, f.lo], [view.to.la, view.to.lo]]), pad); }
     placeSide();
   }, 280);
 }
-function sheetH() { return $('sheet').getBoundingClientRect().height; }
+// Остановка: масштаб не трогаем (только слишком издалека приближаем); видна над панелью — карта стоит на месте
+function showPoint(la, lo) {
+  const z = Math.max(map.getZoom(), 15), H = map.getSize().y, top = 110, bot = H - sheetH();
+  const p = map.latLngToContainerPoint([la, lo]);
+  if (z === map.getZoom() && p.y > top + 30 && p.y < bot - 30 && p.x > 30 && p.x < map.getSize().x - 30) return;
+  const c = map.project([la, lo], z).add([0, H / 2 - (top + bot) / 2]);
+  map.setView(map.unproject(c, z), z);
+}
+function sheetH() { const sh = $('sheet'); return sh.classList.contains('off') ? 0 : sh.getBoundingClientRect().height; }
 function placeSide() { $('side').style.bottom = (sheetH() + 12) + 'px'; }
+// Закрыть: главная панель прячется, остальное возвращает на главную
+function closeSheet() {
+  if (view.k !== 'home') { back = []; view = { k: 'home' }; return open(); }
+  $('sheet').classList.add('off'); document.body.classList.add('off');
+  setTimeout(placeSide, 230);
+}
+function showSheet() { $('sheet').classList.remove('off'); document.body.classList.remove('off'); }
 // Обновить панель, если человек сейчас не печатает в ней
 function refresh() { const a = document.activeElement; if (!(a && a.tagName === 'INPUT' || a && a.tagName === 'TEXTAREA')) render(true); }
 function render(keep) {
@@ -525,23 +547,25 @@ function homeView() {
   // Дом всегда первым: одно нажатие — и маршрут домой отсюда
   const hi = homeIdx();
   const homeRow = hi >= 0 ? placeRow(S.places[hi], hi) : `<button class="row" data-nohome><span class="rb">${ICON.home}</span><div class="info"><div class="t">Дом</div><div class="s">Откройте свою остановку → «Это мой дом»</div></div></button>`;
-  h += `<div class="sec">Избранное</div><div class="list">${homeRow}${S.places.map((p, i) => i === hi ? '' : placeRow(p, i)).join('')}${favs.map(stopCard).join('')}</div>`;
-  h += `<div class="sec">Маршруты</div><div class="chips">${D.routes.map(r => `<button data-route="${r.i}">${numHtml(r)}</button>`).join('')}</div>`;
+  // Без подписей разделов: сверху только крестик
+  h += `<div class="hd" style="margin-bottom:8px"><div class="tt"></div><button class="rb" data-close aria-label="Закрыть">${ICON.x}</button></div>`;
+  h += `<div class="list">${homeRow}${S.places.map((p, i) => i === hi ? '' : placeRow(p, i)).join('')}${favs.map(stopCard).join('')}</div>`;
+  h += `<div class="chips" style="margin-top:14px">${D.routes.map(r => `<button data-route="${r.i}">${numHtml(r)}</button>`).join('')}</div>`;
   return h;
 }
 // Табло: номер и когда приедет; первым — время, рядом бледно следующий
 function boardTime(x) {
   const t = x.live.length ? x.live.map(m => ({ s: mins(m), g: 1 })) : x.sch.map(m => ({ s: hhmm(m) }));
-  if (!t.length) { const f = firstTime(x.d, x.k); return `<div class="eta">${f != null ? `утром ${hhmm(f)}` : 'нет рейсов'}</div>`; }
+  if (!t.length) { const f = firstTime(x.d, x.k); return `<div class="eta">утром ${hhmm(f)}</div>`; }
   return `<div class="brd-t"><b class="${t[0].g ? 'g' : ''}">${t[0].s}</b>${t[1] ? `<span>${t[1].s}</span>` : ''}</div>`;
 }
 function stopView() {
   const s = D.stops[view.s], on = S.fav.includes(s.i);
   const hp = S.places[homeIdx()], isHome = hp && hp.stop === s.i;
   let h = head(esc(s.n), '', `<button class="rb${on ? ' on' : ''}" data-fav="${s.i}" aria-label="В избранное">${ICON.star}</button>`);
-  // Один номер — одна строка, даже если он проходит здесь в обе стороны
+  // Один номер — одна строка, даже если он проходит здесь в обе стороны; номера совсем без рейсов не показываем
   const seen = {};
-  const rows = stopRowsStable(s).filter(x => !seen[x.d.r.id] && (seen[x.d.r.id] = 1));
+  const rows = stopRowsStable(s).filter(x => (x.live.length || x.sch.length || firstTime(x.d, x.k) != null) && !seen[x.d.r.id] && (seen[x.d.r.id] = 1));
   h += `<div class="list">${rows.map(x => `<button class="row brd" data-route="${x.d.r.i}" data-dir="${x.d.i}" data-hi="${s.i}">${numHtml(x.d.r)}<div class="info"></div>${boardTime(x)}</button>`).join('')}</div>`;
   h += `<div class="btns"><button class="btn gold" data-tripstop="${s.i}">Поехать туда</button></div>`;
   h += `<div class="btns">${hp && !isHome ? `<button class="btn" data-homefrom="${s.i}">${ICON.home} Домой отсюда</button>` : ''}<button class="btn${isHome ? ' on' : ''}" data-sethome="${s.i}">${ICON.home} ${isHome ? 'Мой дом' : 'Это мой дом'}</button></div>`;
@@ -732,6 +756,8 @@ document.addEventListener('click', e => {
   if (t.id === 'grab') { const sh = $('sheet'); sh.classList.remove('big'); sh.classList.toggle('mini'); setTimeout(placeSide, 260); return; }
   if (t.hasAttribute('data-back')) return goBack();
   if (t.hasAttribute('data-home')) { back = []; view = { k: 'home' }; return open(); }
+  if (t.hasAttribute('data-close')) return closeSheet();
+  if (t.id === 'panBtn') { showSheet(); return setTimeout(placeSide, 230); }
   if (t.id === 'meBtn') return locate(true);
   if (t.id === 'setBtn') return go({ k: 'set' });
   if (t.dataset.fav != null) { const i = +t.dataset.fav, k = S.fav.indexOf(i); if (k < 0) S.fav.push(i); else S.fav.splice(k, 1); save(); t.classList.toggle('on', k < 0); toast(k < 0 ? 'В избранном' : 'Убрано из избранного'); return; }
@@ -782,25 +808,50 @@ $('q').addEventListener('input', search);
 document.addEventListener('input', e => { if (e.target.id === 'labelIn') { const p = S.places[placeIdx(view.to)]; if (p) { p.label = e.target.value.trim(); save(); } } });
 $('q').addEventListener('focus', () => { $('sheet').classList.add('mini'); placeSide(); search(); });
 $('q').addEventListener('blur', () => setTimeout(() => { if (!$('q').value) { $('res').classList.remove('on'); $('sheet').classList.remove('mini'); setTimeout(placeSide, 260); } }, 150));
-// Панель тянется пальцем: за полоску, заголовок или содержимое, когда оно прокручено до верха
+// Панель тянется пальцем. Вниз — за полоску, заголовок или содержимое, когда оно прокручено до верха;
+// влево и вправо — из любого места. Главная, настройки и остановка закрываются свайпом вниз,
+// любая панель — свайпом в сторону; поездка и маршрут вниз только сворачиваются, чтобы видеть карту
 let drag = null;
+const downCloses = () => view.k === 'home' || view.k === 'set' || view.k === 'stop';
 $('sheet').addEventListener('touchstart', e => {
-  const body = $('body'), onTop = e.target.closest('#grab,.hd') || body.scrollTop <= 0;
-  drag = onTop ? { y: e.touches[0].clientY, dy: 0, on: false } : null;
+  const t = e.touches[0];
+  drag = { x: t.clientX, y: t.clientY, dx: 0, dy: 0, ax: null, top: !!e.target.closest('#grab,.hd') || $('body').scrollTop <= 0, hd: !!e.target.closest('#grab,.hd'), inp: !!e.target.closest('input,textarea') };
 }, { passive: true });
 $('sheet').addEventListener('touchmove', e => {
   if (!drag) return;
-  drag.dy = e.touches[0].clientY - drag.y;
-  // Вверх внутри списка — это прокрутка, а не перетаскивание
-  if (!drag.on && drag.dy < 0 && !e.target.closest('#grab,.hd')) { drag = null; return; }
-  if (!drag.on && Math.abs(drag.dy) > 6) { drag.on = true; $('sheet').classList.add('drag'); }
-  if (drag.on) { e.preventDefault(); $('sheet').style.transform = drag.dy > 0 ? `translateY(${drag.dy}px)` : ''; }
+  const t = e.touches[0];
+  drag.dx = t.clientX - drag.x; drag.dy = t.clientY - drag.y;
+  if (!drag.ax) {
+    if (Math.max(Math.abs(drag.dx), Math.abs(drag.dy)) < 8) return;
+    drag.ax = Math.abs(drag.dx) > Math.abs(drag.dy) ? 'x' : 'y';
+    // Вверх внутри списка и вниз посреди прокрутки — это прокрутка, а не перетаскивание
+    if (drag.ax === 'y' && (!drag.top || drag.dy < 0 && !drag.hd)) { drag = null; return; }
+    if (drag.ax === 'x' && drag.inp) { drag = null; return; }
+    $('sheet').classList.add('drag');
+  }
+  e.preventDefault();
+  const sh = $('sheet');
+  if (drag.ax === 'x') { sh.style.transform = `translateX(${drag.dx}px)`; sh.style.opacity = 1 - Math.min(.5, Math.abs(drag.dx) / 600); }
+  else sh.style.transform = drag.dy > 0 ? `translateY(${drag.dy}px)` : '';
 }, { passive: false });
+// Панель уезжает за край и закрывается
+function flyOff(tr) {
+  const sh = $('sheet');
+  sh.classList.remove('drag'); sh.style.transform = tr; sh.style.opacity = '0';
+  setTimeout(() => {
+    sh.classList.add('drag'); sh.style.transform = ''; sh.style.opacity = '';
+    closeSheet();
+    requestAnimationFrame(() => requestAnimationFrame(() => sh.classList.remove('drag')));
+  }, 220);
+}
 $('sheet').addEventListener('touchend', () => {
   if (!drag) return;
-  const sh = $('sheet'), { dy, on } = drag; drag = null;
-  sh.classList.remove('drag'); sh.style.transform = '';
-  if (!on) return;
+  const sh = $('sheet'), { dx, dy, ax } = drag; drag = null;
+  if (!ax) return;
+  if (ax === 'x' && Math.abs(dx) > 70) return flyOff(`translateX(${dx > 0 ? 110 : -110}%)`);
+  if (ax === 'y' && dy > 70 && !sh.classList.contains('big') && downCloses()) return flyOff('translateY(110%)');
+  sh.classList.remove('drag'); sh.style.transform = ''; sh.style.opacity = '';
+  if (ax === 'x') return;
   if (dy > 50) { if (sh.classList.contains('big')) sh.classList.remove('big'); else sh.classList.add('mini'); }
   else if (dy < -40) { if (sh.classList.contains('mini')) sh.classList.remove('mini'); else sh.classList.add('big'); }
   setTimeout(placeSide, 260);
