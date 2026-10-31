@@ -95,6 +95,16 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .busin svg{width:11px;height:11px;color:#081018}
 .btns{display:flex;gap:8px;margin-top:12px}
 .btn{flex:1;height:46px;border-radius:14px;background:var(--key);border:1px solid var(--line);font-weight:600;font-size:15px;display:grid;place-items:center;text-decoration:none;color:var(--text)}
+.btn{display:flex;align-items:center;justify-content:center;gap:7px}
+.btn svg{width:18px;height:18px}
+.btn.gold{background:#e8c99c;border-color:#e8c99c;color:#14171e}
+.btn.on{border-color:#e8c99c;color:#e8c99c}
+/* Табло остановки: номер слева, время справа */
+.brd{min-height:52px}
+.brd-t{flex:none;display:flex;align-items:baseline;gap:10px}
+.brd-t b{font-size:20px;font-weight:700;font-variant-numeric:tabular-nums}
+.brd-t b.g{color:var(--green)}
+.brd-t span{font-size:14px;color:var(--muted);font-variant-numeric:tabular-nums}
 .note{font-size:12px;color:var(--muted);line-height:1.5;margin-top:12px}
 .empty{color:var(--muted);font-size:14px;padding:6px 2px;line-height:1.5}
 .field{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:0 12px;font-size:15px;outline:none}
@@ -155,7 +165,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <script>
 const KEY = 'bus-data';
 // Версия приложения — называть Андрею перед каждой публикацией
-const VERSION = '2.3';
+const VERSION = '2.4';
 // Адрес посредника (Cloudflare Worker); можно поменять в настройках
 const DEFAULT_LIVE = 'https://bus-proxy.andriiborush.workers.dev';
 // Метров по прямой в минуту — средняя скорость городского автобуса с остановками
@@ -185,8 +195,11 @@ let view = { k: 'home' }, back = [];
 
 function load() { try { return Object.assign({ fav: [], places: [], live: DEFAULT_LIVE }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { fav: [], places: [], live: DEFAULT_LIVE }; } }
 const placeIcon = p => p.label === 'Дом' ? ICON.home : p.label === 'Работа' ? ICON.work : ICON.star;
+const homeIdx = () => S.places.findIndex(p => p.label === 'Дом');
 const placeIdx = to => S.places.findIndex(p => Math.abs(p.la - to.la) < 1e-5 && Math.abs(p.lo - to.lo) < 1e-5);
 function placeRow(p, i) { return `<button class="row" data-pgo="${i}"><span class="rb on">${placeIcon(p)}</span><div class="info"><div class="t">${esc(p.label || p.n)}</div>${p.label ? `<div class="s">${esc(p.n)}</div>` : ''}</div></button>`; }
+// Дом один: прежний снимается; если им была остановка — она уходит из адресов совсем
+function clearHome() { S.places = S.places.filter(p => p.label !== 'Дом' || p.stop == null && (p.label = '', true)); }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -393,21 +406,40 @@ function ridePath(d, k, j) {
   }
   return out;
 }
+// Пеший путь по улицам и тропинкам — от OpenStreetMap (routing.openstreetmap.de), бесплатно и без ключа.
+// Пока ответа нет или нет интернета — бледная прямая
+const foot = {};
+function footPath(a, b) {
+  if (dist(a[0], a[1], b[0], b[1]) < 40) return [a, b];
+  const k = [a, b].map(p => p[0].toFixed(5) + ',' + p[1].toFixed(5)).join(';');
+  if (foot[k] !== undefined) return foot[k];
+  foot[k] = null;
+  fetch(`https://routing.openstreetmap.de/routed-foot/route/v1/foot/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson`)
+    .then(r => r.json()).then(j => {
+      const c = j.routes[0].geometry.coordinates.map(([lo, la]) => [la, lo]);
+      foot[k] = [a, ...c, b];
+      if (view.k === 'trip') drawRoute();
+    }).catch(() => {});
+  return null;
+}
+function drawWalk(a, b) {
+  const p = footPath(a, b);
+  L.polyline(p || [a, b], { color: '#eef0f4', weight: 3, opacity: p ? .85 : .35, dashArray: '2 7', lineCap: 'round', interactive: false }).addTo(routeLayer);
+}
 function drawTrip() {
   const pl = tripPlans(), o = pl[view.opt];
   const to = view.to, from = tripFrom();
   L.marker([to.la, to.lo], { icon: L.divIcon({ className: '', html: '<div class="pin"></div>', iconSize: [30, 30], iconAnchor: [4, 34] }), interactive: false, zIndexOffset: 900 }).addTo(routeLayer);
   if (!o) return;
-  const dash = { color: '#eef0f4', weight: 3, opacity: .8, dashArray: '2 7', lineCap: 'round', interactive: false };
   let cur = [from.la, from.lo];
   o.legs.forEach(l => {
     const a = D.stops[l.d.st[l.k]], b = D.stops[l.d.st[l.j]];
-    L.polyline([cur, [a.la, a.lo]], dash).addTo(routeLayer);
+    drawWalk(cur, [a.la, a.lo]);
     L.polyline(ridePath(l.d, l.k, l.j), { color: `hsl(${l.d.r.h} 62% 55%)`, weight: 6, opacity: .95, interactive: false }).addTo(routeLayer);
     [a, b].forEach(s => L.circleMarker([s.la, s.lo], { radius: 6, weight: 3, color: `hsl(${l.d.r.h} 62% 55%)`, fillColor: '#0b0d12', fillOpacity: 1, interactive: false }).addTo(routeLayer));
     cur = [b.la, b.lo];
   });
-  L.polyline([cur, [to.la, to.lo]], dash).addTo(routeLayer);
+  drawWalk(cur, [to.la, to.lo]);
 }
 
 // ---------- Живые данные ----------
@@ -460,7 +492,8 @@ function render(keep) {
 }
 function head(t, s, extra) {
   const sub = view.k !== 'home';
-  return `<div class="hd">${sub ? `<button class="rb" data-back>${ICON.back}</button>` : ''}<div class="tt"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div>${extra || ''}${sub ? `<button class="rb" data-home>${ICON.x}</button>` : ''}</div>`;
+  // «Назад» — только если есть куда, кроме главной: туда ведёт крестик
+  return `<div class="hd">${sub && back.length ? `<button class="rb" data-back>${ICON.back}</button>` : ''}<div class="tt"><div class="t">${t}</div>${s ? `<div class="s">${s}</div>` : ''}</div>${extra || ''}${sub ? `<button class="rb" data-home>${ICON.x}</button>` : ''}</div>`;
 }
 // Все маршруты через остановку с ближайшими прибытиями
 function stopRows(s) {
@@ -489,15 +522,29 @@ function stopCard(s) {
 function homeView() {
   let h = '';
   const favs = S.fav.map(i => D.stops[i]).filter(Boolean);
-  if (favs.length || S.places.length) h += `<div class="sec">Избранное</div><div class="list">${S.places.map(placeRow).join('')}${favs.map(stopCard).join('')}</div>`;
+  // Дом всегда первым: одно нажатие — и маршрут домой отсюда
+  const hi = homeIdx();
+  const homeRow = hi >= 0 ? placeRow(S.places[hi], hi) : `<button class="row" data-nohome><span class="rb">${ICON.home}</span><div class="info"><div class="t">Дом</div><div class="s">Откройте свою остановку → «Это мой дом»</div></div></button>`;
+  h += `<div class="sec">Избранное</div><div class="list">${homeRow}${S.places.map((p, i) => i === hi ? '' : placeRow(p, i)).join('')}${favs.map(stopCard).join('')}</div>`;
   h += `<div class="sec">Маршруты</div><div class="chips">${D.routes.map(r => `<button data-route="${r.i}">${numHtml(r)}</button>`).join('')}</div>`;
   return h;
 }
+// Табло: номер и когда приедет; первым — время, рядом бледно следующий
+function boardTime(x) {
+  const t = x.live.length ? x.live.map(m => ({ s: mins(m), g: 1 })) : x.sch.map(m => ({ s: hhmm(m) }));
+  if (!t.length) { const f = firstTime(x.d, x.k); return `<div class="eta">${f != null ? `утром ${hhmm(f)}` : 'нет рейсов'}</div>`; }
+  return `<div class="brd-t"><b class="${t[0].g ? 'g' : ''}">${t[0].s}</b>${t[1] ? `<span>${t[1].s}</span>` : ''}</div>`;
+}
 function stopView() {
   const s = D.stops[view.s], on = S.fav.includes(s.i);
-  const m = me ? dist(me.la, me.lo, s.la, s.lo) : null;
-  let h = head(esc(s.n), `№${s.c}${m != null ? ' · ' + fmtD(m) + ', ' + walk(m) + ' мин пешком' : ''}`, `<button class="rb${on ? ' on' : ''}" data-fav="${s.i}">${ICON.star}</button>`);
-  h += `<div class="list">${stopRowsStable(s).map(x => `<button class="row" data-route="${x.d.r.i}" data-dir="${x.d.i}" data-hi="${s.i}">${numHtml(x.d.r)}<div class="info"><div class="t">→ ${esc(x.d.to)}</div></div>${etaHtml(x)}</button>`).join('')}</div>`;
+  const hp = S.places[homeIdx()], isHome = hp && hp.stop === s.i;
+  let h = head(esc(s.n), '', `<button class="rb${on ? ' on' : ''}" data-fav="${s.i}" aria-label="В избранное">${ICON.star}</button>`);
+  // Один номер — одна строка, даже если он проходит здесь в обе стороны
+  const seen = {};
+  const rows = stopRowsStable(s).filter(x => !seen[x.d.r.id] && (seen[x.d.r.id] = 1));
+  h += `<div class="list">${rows.map(x => `<button class="row brd" data-route="${x.d.r.i}" data-dir="${x.d.i}" data-hi="${s.i}">${numHtml(x.d.r)}<div class="info"></div>${boardTime(x)}</button>`).join('')}</div>`;
+  h += `<div class="btns"><button class="btn gold" data-tripstop="${s.i}">Поехать туда</button></div>`;
+  h += `<div class="btns">${hp && !isHome ? `<button class="btn" data-homefrom="${s.i}">${ICON.home} Домой отсюда</button>` : ''}<button class="btn${isHome ? ' on' : ''}" data-sethome="${s.i}">${ICON.home} ${isHome ? 'Мой дом' : 'Это мой дом'}</button></div>`;
   return h;
 }
 function routeView() {
@@ -507,7 +554,7 @@ function routeView() {
   return head(`${numHtml(r)}<span>→ ${esc(d.to)}</span>`, '', swap);
 }
 // ---------- Поездка ----------
-function tripFrom() { const p = me || S.last; return p ? { n: 'Я здесь', la: p.la, lo: p.lo } : (() => { const c = map.getCenter(); return { n: 'Центр карты', la: c.lat, lo: c.lng }; })(); }
+function tripFrom() { if (view.from) return view.from; const p = me || S.last; return p ? { n: 'Я здесь', la: p.la, lo: p.lo } : (() => { const c = map.getCenter(); return { n: 'Центр карты', la: c.lat, lo: c.lng }; })(); }
 // Сколько ждать автобус направления d у остановки k, если я буду там через w минут
 function waitAt(d, k, w) {
   const live = liveEta(d, k).find(m => m >= w);
@@ -583,7 +630,7 @@ function nearStops(x) {
 function tripView() {
   const to = view.to, from = tripFrom(), pl = tripPlans();
   const fi = placeIdx(to), fp = S.places[fi];
-  let h = head(esc(fp && fp.label || to.n), fp && fp.label ? esc(to.n) : `от: ${esc(from.n)}`, `<button class="rb${fp ? ' on' : ''}" data-pfav>${ICON.star}</button>`);
+  let h = head(esc(fp && fp.label || to.n), fp && fp.label && !view.from ? esc(to.n) : `от: ${esc(from.n)}`, `<button class="rb${fp ? ' on' : ''}" data-pfav>${ICON.star}</button>`);
   // Отмеченный адрес можно подписать: Дом, Работа или своё
   if (fp) h += `<div class="chips" style="margin:-4px 0 12px">${['Дом', 'Работа'].map(l => `<button class="btn" style="flex:none;height:32px;padding:0 12px;font-size:13px${fp.label === l ? ';border-color:#e8c99c;color:#e8c99c' : ''}" data-label="${l}">${l}</button>`).join('')}<input class="field" id="labelIn" style="flex:1;min-width:110px;height:32px;font-size:13px" placeholder="Своё название" value="${esc(fp.label && fp.label !== 'Дом' && fp.label !== 'Работа' ? fp.label : '')}"></div>`;
   if (!pl.length) return h + `<div class="empty">Не нашёл автобуса в пределах 900 м от начала и конца пути. Попробуйте другую точку.</div>`;
@@ -708,7 +755,22 @@ document.addEventListener('click', e => {
     if (i < 0) { S.places.push({ n: view.to.n, la: view.to.la, lo: view.to.lo }); toast('В избранном'); } else { S.places.splice(i, 1); toast('Убрано из избранного'); }
     save(); return render(true);
   }
-  if (t.dataset.label != null) { const p = S.places[placeIdx(view.to)]; if (p) { p.label = p.label === t.dataset.label ? '' : t.dataset.label; save(); render(true); } return; }
+  if (t.dataset.label != null) {
+    const p = S.places[placeIdx(view.to)];
+    if (p) { const l = p.label === t.dataset.label ? '' : t.dataset.label; if (l === 'Дом') clearHome(); p.label = l; save(); render(true); }
+    return;
+  }
+  if (t.hasAttribute('data-nohome')) return toast('Откройте свою остановку и нажмите «Это мой дом»');
+  if (t.dataset.sethome != null) {
+    const s = D.stops[+t.dataset.sethome], hp = S.places[homeIdx()], was = hp && hp.stop === s.i;
+    clearHome();
+    if (!was) S.places.unshift({ n: s.n, la: s.la, lo: s.lo, label: 'Дом', stop: s.i });
+    save(); toast(was ? 'Дом убран' : 'Теперь это ваш дом'); return render(true);
+  }
+  if (t.dataset.homefrom != null) {
+    const s = D.stops[+t.dataset.homefrom], hp = S.places[homeIdx()];
+    return go({ k: 'trip', to: { n: hp.n, la: hp.la, lo: hp.lo }, from: { n: s.n, la: s.la, lo: s.lo }, opt: 0 });
+  }
   if (t.dataset.pgo != null) { const p = S.places[+t.dataset.pgo]; clearQ(); return go({ k: 'trip', to: { n: p.n, la: p.la, lo: p.lo }, opt: 0 }); }
   if (t.dataset.opt != null) { view.opt = +t.dataset.opt; drawRoute(); drawBuses(); return render(true); }
   if (t.id === 'liveSave') { S.live = $('liveUrl').value.trim(); save(); fails = 0; $('liveUrl').blur(); toast('Сохранено'); poll(); return; }

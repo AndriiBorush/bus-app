@@ -1,5 +1,5 @@
 // Офлайн-кэш приложения. При каждом изменении файлов меняйте версию CACHE.
-const CACHE = 'bus-v8';
+const CACHE = 'bus-v9';
 const TILES = 'bus-tiles';
 const LIB = 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/';
 const LIBS = ['https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.js', 'https://cdn.jsdelivr.net/npm/maplibre-gl@4.7.1/dist/maplibre-gl.css', 'https://cdn.jsdelivr.net/npm/@maplibre/maplibre-gl-leaflet@0.0.22/leaflet-maplibre-gl.js'];
