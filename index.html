@@ -26,7 +26,12 @@ button{background:none;border:0;padding:0;cursor:pointer}
 /* Верх: поиск и связь */
 #top{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 22px);z-index:500;display:flex;gap:8px}
 .glass{background:rgba(18,21,28,.88);-webkit-backdrop-filter:blur(18px);backdrop-filter:blur(18px);border:1px solid var(--line);border-radius:16px}
-#q{flex:1;min-width:0;height:46px;padding:0 14px;font-size:16px;outline:none;-webkit-appearance:none}
+#qw{flex:1;min-width:0;position:relative}
+#q{width:100%;height:46px;padding:0 44px 0 14px;font-size:16px;outline:none;-webkit-appearance:none}
+#q::-webkit-search-cancel-button{display:none}
+#qx{position:absolute;right:6px;top:7px;width:32px;height:32px;border-radius:50%;background:#2a2f3a;display:none;place-items:center;color:var(--text)}
+#qx.on{display:grid}
+#qx svg{width:14px;height:14px}
 #q::placeholder{color:var(--muted)}
 .ib{width:46px;height:46px;flex:none;display:grid;place-items:center}
 .ib svg{width:21px;height:21px}
@@ -35,6 +40,7 @@ button{background:none;border:0;padding:0;cursor:pointer}
 #live.on i{background:var(--green)}
 #res{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 76px);z-index:600;max-height:55vh;overflow-y:auto;display:none}
 #res.on{display:block}
+#res .row .t{white-space:normal;line-height:1.25}
 /* Справа: кнопка «где я» */
 #side{position:fixed;right:12px;bottom:50vh;z-index:450;overflow:hidden}
 #side button{width:46px;height:46px;display:grid;place-items:center;color:var(--acc)}
@@ -45,7 +51,8 @@ button{background:none;border:0;padding:0;cursor:pointer}
 #sheet:after{content:"";position:absolute;left:-1px;right:-1px;top:100%;height:200px;background:inherit;-webkit-backdrop-filter:inherit;backdrop-filter:inherit}
 #sheet.big{max-height:82vh}
 #sheet.mini{max-height:calc(26px + env(safe-area-inset-bottom))}
-#grab{height:24px;flex:none;display:grid;place-items:center;width:100%}
+#grab{height:30px;flex:none;display:grid;place-items:center;width:100%;touch-action:none}
+#sheet.drag{transition:none}
 #grab:after{content:"";width:38px;height:5px;border-radius:3px;background:#3a3f4c}
 #body{overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px 16px;flex:1}
 .hd{display:flex;align-items:center;gap:10px;margin-bottom:12px}
@@ -93,14 +100,14 @@ button{background:none;border:0;padding:0;cursor:pointer}
 .field{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:0 12px;font-size:15px;outline:none}
 textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 /* Метки на карте */
-.bus{position:relative;width:30px;height:30px}
-.bus b{position:absolute;inset:0;border-radius:50%;background:hsl(var(--h) 62% 55%);color:#081018;font-weight:800;font-size:12px;letter-spacing:-.3px;display:grid;place-items:center;border:2px solid #fff;box-shadow:0 3px 10px rgba(0,0,0,.55);z-index:1}
-/* «Нос» — куда едет автобус; поворачивается вокруг метки */
-.bus i{position:absolute;inset:-8px;transition:transform .8s ease}
-.bus i:before{content:"";position:absolute;left:50%;top:0;margin-left:-6px;border:6px solid transparent;border-top:0;border-bottom:9px solid #fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.5))}
-.bus.nodir i{display:none}
+.bus{position:relative;width:44px;height:44px;color:hsl(var(--h) 62% 56%)}
+/* Автобус сверху: кабина с лобовым стеклом смотрит туда, куда он едет */
+.bus svg{position:absolute;z-index:0;left:11px;top:0;width:22px;height:44px;transition:transform .8s ease;filter:drop-shadow(0 3px 5px rgba(0,0,0,.6))}
+/* Номер — плашкой сбоку, чтобы не закрывать кабину */
+.bus b{position:absolute;left:30px;top:-6px;min-width:24px;height:17px;padding:0 5px;border-radius:6px;background:#0b0d12;color:#fff;font-weight:800;font-size:11px;letter-spacing:-.2px;display:grid;place-items:center;border:1.5px solid currentColor;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.5)}
 .bus.park{opacity:.35}
 .busmk{transition:transform 1.4s linear}
+.far .bus{transform:scale(.72)}
 .zooming .busmk{transition:none}
 /* Остановка вблизи: тёмная плашка с золотым автобусом, как иконка приложения */
 .stp{width:22px;height:22px;border-radius:7px;background:#14171e;border:1.5px solid rgba(232,201,156,.75);display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.5)}
@@ -134,7 +141,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <body>
 <div id="map"></div>
 <div id="top">
-  <input id="q" class="glass" type="search" placeholder="Куда едем?" autocomplete="off">
+  <div id="qw"><input id="q" class="glass" type="search" placeholder="Куда едем?" autocomplete="off"><button id="qx" aria-label="Очистить"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg></button></div>
   <button class="glass ib" id="setBtn" aria-label="Настройки"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></button>
 </div>
 <div id="live" class="glass"><i></i><span>Загрузка…</span></div>
@@ -148,7 +155,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <script>
 const KEY = 'bus-data';
 // Версия приложения — называть Андрею перед каждой публикацией
-const VERSION = '2.2';
+const VERSION = '2.3';
 // Адрес посредника (Cloudflare Worker); можно поменять в настройках
 const DEFAULT_LIVE = 'https://bus-proxy.andriiborush.workers.dev';
 // Метров по прямой в минуту — средняя скорость городского автобуса с остановками
@@ -157,12 +164,16 @@ const ICON = {
   x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
   back: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
   star: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 3.5l2.6 5.3 5.9.9-4.3 4.1 1 5.8L12 16.9l-5.2 2.7 1-5.8-4.3-4.1 5.9-.9z"/></svg>',
+  swap: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4"/></svg>',
+  home: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 11l8-7 8 7v9h-5v-6H9v6H4z"/></svg>',
+  work: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2"/><path d="M9 7V5h6v2"/></svg>',
   bus: '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 3h12a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2v2h-3v-2H9v2H6v-2a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm0 3v5h12V6z"/></svg>',
   walk: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="4.5" r="1.6" fill="currentColor"/><path d="M10 21l2-6 3 3v3M9 12l2-4 4 2 2 3M11 8l-3 2-1 3"/></svg>',
   flag: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 21V4M6 4h11l-2 4 2 4H6"/></svg>',
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'
 };
 let P = null; // адреса и места — грузятся при первом поиске
+const BUS_TOP = '<svg viewBox="0 0 20 40"><rect x="1.5" y="1.5" width="17" height="37" rx="5" fill="currentColor" stroke="#fff" stroke-width="1.6"/><path d="M4 9.5V6.2C4 4.7 5 3.8 6.5 3.8h7c1.5 0 2.5.9 2.5 2.4v3.3z" fill="#0b0d12" opacity=".85"/><rect x="5" y="34" width="10" height="2" rx="1" fill="#0b0d12" opacity=".45"/></svg>';
 let D, map, stopLayer, stopIcons, routeLayer, busLayer, meMarker;
 let S = load();
 let me = S.last || null;
@@ -172,7 +183,10 @@ const hist = {};
 const busMarkers = {};
 let view = { k: 'home' }, back = [];
 
-function load() { try { return Object.assign({ fav: [], live: DEFAULT_LIVE }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { fav: [], live: DEFAULT_LIVE }; } }
+function load() { try { return Object.assign({ fav: [], places: [], live: DEFAULT_LIVE }, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch (e) { return { fav: [], places: [], live: DEFAULT_LIVE }; } }
+const placeIcon = p => p.label === 'Дом' ? ICON.home : p.label === 'Работа' ? ICON.work : ICON.star;
+const placeIdx = to => S.places.findIndex(p => Math.abs(p.la - to.la) < 1e-5 && Math.abs(p.lo - to.lo) < 1e-5);
+function placeRow(p, i) { return `<button class="row" data-pgo="${i}"><span class="rb on">${placeIcon(p)}</span><div class="info"><div class="t">${esc(p.label || p.n)}</div>${p.label ? `<div class="s">${esc(p.n)}</div>` : ''}</div></button>`; }
 function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) {} }
 const $ = id => document.getElementById(id);
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
@@ -290,6 +304,9 @@ function initMap() {
   });
   map.on('zoomend moveend', stopSize);
   // Пока карта меняет масштаб, автобусы не «плывут», а сразу встают на место
+  // Издалека автобусы меньше, чтобы не закрывали город
+  const busScale = () => document.body.classList.toggle('far', map.getZoom() < 15);
+  map.on('zoomend', busScale); busScale();
   map.on('zoomstart', () => document.body.classList.add('zooming'));
   map.on('zoomend', () => setTimeout(() => document.body.classList.remove('zooming'), 50));
   map.on('contextmenu', e => go({ k: 'trip', to: { n: 'Точка на карте', la: e.latlng.lat, lo: e.latlng.lng }, opt: 0 }));
@@ -325,17 +342,17 @@ function drawBuses() {
     if (tr && !tr.has(b.route)) continue;
     seen[b.p] = 1;
     let m = busMarkers[b.p];
-    const html = `<div class="bus${b.park ? ' park' : ''}" style="--h:${b.route.h}"><i></i><b>${esc(b.route.ref)}</b></div>`;
+    const html = `<div class="bus${b.park ? ' park' : ''}" style="--h:${b.route.h}">${BUS_TOP}<b>${esc(b.route.ref)}</b></div>`;
     if (!m) {
-      m = busMarkers[b.p] = L.marker([b.la, b.lo], { icon: L.divIcon({ className: 'busmk', html, iconSize: [30, 30] }), zIndexOffset: 500 }).addTo(busLayer);
+      m = busMarkers[b.p] = L.marker([b.la, b.lo], { icon: L.divIcon({ className: 'busmk', html, iconSize: [44, 44] }), zIndexOffset: 500 }).addTo(busLayer);
       m.on('click', () => { const x = buses.find(y => y.p === b.p); if (x) go({ k: 'route', r: x.route.i, d: x.d.i }); });
     } else {
       m.setLatLng([b.la, b.lo]);
-      if (m._h !== html) m.setIcon(L.divIcon({ className: 'busmk', html, iconSize: [30, 30] }));
+      if (m._h !== html) m.setIcon(L.divIcon({ className: 'busmk', html, iconSize: [44, 44] }));
     }
     m._h = html;
-    // Поворачиваем «нос» без перерисовки метки — так он плавно доворачивает
-    const nose = m.getElement() && m.getElement().querySelector('i');
+    // Поворачиваем автобус без перерисовки метки — так он плавно доворачивает
+    const nose = m.getElement() && m.getElement().querySelector('svg');
     if (nose) {
       const prev = m._deg ?? b.head;
       const deg = prev + ((b.head - prev + 540) % 360 - 180);
@@ -472,7 +489,7 @@ function stopCard(s) {
 function homeView() {
   let h = '';
   const favs = S.fav.map(i => D.stops[i]).filter(Boolean);
-  if (favs.length) h += `<div class="sec">Избранное</div><div class="list">${favs.map(stopCard).join('')}</div>`;
+  if (favs.length || S.places.length) h += `<div class="sec">Избранное</div><div class="list">${S.places.map(placeRow).join('')}${favs.map(stopCard).join('')}</div>`;
   h += `<div class="sec">Маршруты</div><div class="chips">${D.routes.map(r => `<button data-route="${r.i}">${numHtml(r)}</button>`).join('')}</div>`;
   return h;
 }
@@ -481,38 +498,13 @@ function stopView() {
   const m = me ? dist(me.la, me.lo, s.la, s.lo) : null;
   let h = head(esc(s.n), `№${s.c}${m != null ? ' · ' + fmtD(m) + ', ' + walk(m) + ' мин пешком' : ''}`, `<button class="rb${on ? ' on' : ''}" data-fav="${s.i}">${ICON.star}</button>`);
   h += `<div class="list">${stopRowsStable(s).map(x => `<button class="row" data-route="${x.d.r.i}" data-dir="${x.d.i}" data-hi="${s.i}">${numHtml(x.d.r)}<div class="info"><div class="t">→ ${esc(x.d.to)}</div></div>${etaHtml(x)}</button>`).join('')}</div>`;
-  h += `<div class="btns"><button class="btn" data-tripstop="${s.i}">Поехать сюда</button><a class="btn" href="https://maps.apple.com/?daddr=${s.la},${s.lo}&dirflg=w" target="_blank">Дойти пешком</a></div>`;
-  h += `<div class="note">Зелёным — по живым координатам автобусов, белым — по расписанию.</div>`;
   return h;
 }
 function routeView() {
   const r = D.routes[view.r], d = r.dirs[view.d];
-  const act = buses.filter(b => b.route === r && !b.park);
-  // Интервал сейчас — по расписанию первой остановки
-  const ts = d.t[0] || [], nx = ts.filter(x => x >= nowMin());
-  const iv = nx.length > 1 ? Math.round(nx[1] - nx[0]) : null;
-  const sub = [act.length ? act.length + ' на линии' : 'на линии нет', iv ? 'каждые ~' + iv + ' мин' : '', ts.length ? hhmm(ts[0]) + '–' + hhmm(ts[ts.length - 1]) : ''].filter(Boolean).join(' · ');
-  let h = head(`${numHtml(r)}<span>→ ${esc(d.to)}</span>`, sub);
-  if (r.dirs.length > 1) h += `<div class="seg">${r.dirs.map((x, i) => `<button data-route="${r.i}" data-dir="${i}" data-hi="${view.hi ?? ''}" data-swap class="${i === view.d ? 'on' : ''}">→ ${esc(x.to)}</button>`).join('')}</div>`;
-  // Где удобнее сесть: ближайшая ко мне остановка этого направления
-  if (me) {
-    let bk = -1, bm = 3000;
-    d.st.forEach((si, k) => { if (k === d.st.length - 1) return; const s = D.stops[si], m = dist(me.la, me.lo, s.la, s.lo); if (m < bm) { bm = m; bk = k; } });
-    if (bk >= 0) {
-      const a = arrivals(d, bk), s = D.stops[d.st[bk]];
-      const when = a.live.length ? `автобус через <b class="g">${mins(a.live[0])}</b>` : a.sch.length ? `по плану в <b>${hhmm(a.sch[0])}</b>` : firstTime(d, bk) != null ? `первый в <b>${hhmm(firstTime(d, bk))}</b>` : 'рейсов нет';
-      h += `<button class="tip" data-stop="${s.i}">Садиться: <b>${esc(s.n)}</b><br><span class="m">${walk(bm)} мин пешком · </span>${when}</button>`;
-    }
-  }
-  // Остановки по порядку; значок автобуса — между остановками, где он сейчас
-  const at = act.filter(b => b.d === d).map(b => b.at);
-  h += `<div class="stops" style="--h:${r.h}">` + d.st.map((si, k) => {
-    const s = D.stops[si];
-    const here = k > 0 && at.some(x => x > d.at[k - 1] + 20 && x <= d.at[k] + 20);
-    const e = k < d.st.length - 1 ? liveEta(d, k)[0] : null;
-    return `${here ? `<div class="busin"><span>${ICON.bus}</span></div>` : ''}<button class="sp${si === view.hi ? ' me' : ''}" data-stop="${si}"><span class="n">${esc(s.n)}</span>${e != null && e < 60 ? `<span class="w">${mins(e)}</span>` : ''}</button>`;
-  }).join('') + `</div>`;
-  return h;
+  // Только номер и направление; всё остальное — на карте
+  const swap = r.dirs.length > 1 ? `<button class="rb" data-route="${r.i}" data-dir="${1 - view.d}" data-hi="${view.hi ?? ''}" data-swap aria-label="Обратно">${ICON.swap}</button>` : '';
+  return head(`${numHtml(r)}<span>→ ${esc(d.to)}</span>`, '', swap);
 }
 // ---------- Поездка ----------
 function tripFrom() { const p = me || S.last; return p ? { n: 'Я здесь', la: p.la, lo: p.lo } : (() => { const c = map.getCenter(); return { n: 'Центр карты', la: c.lat, lo: c.lng }; })(); }
@@ -590,7 +582,10 @@ function nearStops(x) {
 }
 function tripView() {
   const to = view.to, from = tripFrom(), pl = tripPlans();
-  let h = head(esc(to.n), `от: ${esc(from.n)}`);
+  const fi = placeIdx(to), fp = S.places[fi];
+  let h = head(esc(fp && fp.label || to.n), fp && fp.label ? esc(to.n) : `от: ${esc(from.n)}`, `<button class="rb${fp ? ' on' : ''}" data-pfav>${ICON.star}</button>`);
+  // Отмеченный адрес можно подписать: Дом, Работа или своё
+  if (fp) h += `<div class="chips" style="margin:-4px 0 12px">${['Дом', 'Работа'].map(l => `<button class="btn" style="flex:none;height:32px;padding:0 12px;font-size:13px${fp.label === l ? ';border-color:#e8c99c;color:#e8c99c' : ''}" data-label="${l}">${l}</button>`).join('')}<input class="field" id="labelIn" style="flex:1;min-width:110px;height:32px;font-size:13px" placeholder="Своё название" value="${esc(fp.label && fp.label !== 'Дом' && fp.label !== 'Работа' ? fp.label : '')}"></div>`;
   if (!pl.length) return h + `<div class="empty">Не нашёл автобуса в пределах 900 м от начала и конца пути. Попробуйте другую точку.</div>`;
   const now = nowMin();
   h += pl.map((o, i) => {
@@ -621,9 +616,34 @@ function setView() {
 }
 
 // ---------- Поиск ----------
+// Слова, которые не помогают искать: «улица», «Батуми», индекс и т. п.
+const STOP_WORDS = new Set(['улица', 'ул', 'проспект', 'пр', 'пр-т', 'переулок', 'пер', 'тупик', 'шоссе', 'площадь', 'пл', 'street', 'st', 'str', 'avenue', 'ave', 'av', 'road', 'rd', 'lane', 'ln', 'ქუჩა', 'ქ', 'გამზირი', 'батуми', 'batumi', 'ბათუმი', 'грузия', 'georgia', 'საქართველო', 'аджария', 'adjara', 'აჭარა', 'дом', 'д']);
+// x → ks: Google пишет Aleksandre, OpenStreetMap — Alexander
+function words(t) { return t.toLowerCase().replace(/ё/g, 'е').replace(/x/g, 'ks').replace(/[.,#№"«»()\/]/g, ' ').split(/\s+/).filter(w => w && !STOP_WORDS.has(w) && !/^\d{4,}$/.test(w)); }
+// Каждое слово запроса должно быть началом слова в названии; номер дома — совпадать
+function matches(qw, x) {
+  if (!x.w) x.w = words(x[0] + ' ' + (x[4] || ''));
+  return qw.every(q => /^\d/.test(q) ? x.w.includes(q) || x.w.some(w => w.startsWith(q) && /^\d+[^\d]?$/.test(w) && w.length === q.length + 1) : x.w.some(w => w.startsWith(q) || (q.length >= 5 && w.startsWith(q.slice(0, -2)))));
+}
+let nomi = {}, nomiT = null;
+// Нет в справочнике — спрашиваем OpenStreetMap в интернете
+function online(v) {
+  clearTimeout(nomiT);
+  if (nomi[v] || !navigator.onLine) return;
+  nomiT = setTimeout(() => {
+    fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=5&accept-language=ru&bounded=1&viewbox=41.53,41.72,41.80,41.53&q=${encodeURIComponent(v)}`)
+      .then(r => r.json()).then(j => { nomi[v] = j.map(x => [x.display_name.split(',').slice(0, 2).join(','), +x.lat, +x.lon, 2]); search(); }).catch(() => {});
+  }, 700);
+}
 function search() {
-  const v = $('q').value.trim().toLowerCase(), el = $('res');
-  if (!v) { el.classList.remove('on'); return; }
+  const raw = $('q').value.trim(), v = raw.toLowerCase(), el = $('res');
+  $('qx').classList.toggle('on', !!raw);
+  if (!v) {
+    // Пустой поиск — избранные адреса под рукой
+    if (S.places.length && document.activeElement === $('q')) { el.innerHTML = S.places.map(placeRow).join(''); el.classList.add('on'); }
+    else el.classList.remove('on');
+    return;
+  }
   const lat = v.replace(/а/g, 'a');
   const rs = D.routes.filter(r => r.ref.toLowerCase().startsWith(lat));
   const seen = {};
@@ -634,15 +654,22 @@ function search() {
   let ps = [];
   if (v.length >= 3) {
     if (!P) { fetch('places.json').then(r => r.json()).then(j => { P = j; search(); }); }
-    else ps = P.filter(x => x[0].toLowerCase().includes(v)).map(x => [x, me ? dist(me.la, me.lo, x[1], x[2]) : 0]).sort((a, b) => (a[0][3] === 2) - (b[0][3] === 2) || a[1] - b[1]).slice(0, 25);
+    else {
+      const qw = words(raw);
+      if (qw.length) ps = P.filter(x => matches(qw, x)).map(x => [x, me ? dist(me.la, me.lo, x[1], x[2]) : 0]).sort((a, b) => (a[0][3] === 2) - (b[0][3] === 2) || a[1] - b[1]).slice(0, 25);
+      // Номер дома в запросе — дома выше улиц
+      if (qw.some(w => /^\d/.test(w))) ps.sort((a, b) => (b[0][3] === 2) - (a[0][3] === 2) || a[1] - b[1]);
+      if (!ps.length && !rs.length && !ss.length) { if (nomi[raw]) ps = nomi[raw].map(x => [x, me ? dist(me.la, me.lo, x[1], x[2]) : 0]); else online(raw); }
+    }
   }
   el.innerHTML = rs.map(r => `<button class="row" data-route="${r.i}">${numHtml(r)}<div class="info"><div class="t">Маршрут ${esc(r.ref)}</div><div class="s">${r.dirs.map(d => esc(d.to)).join(' ⇄ ')}</div></div></button>`).join('')
     + ps.map(([x, m]) => `<button class="row" data-place="${esc(JSON.stringify(x))}"><span class="rb">${ICON.pin}</span><div class="info"><div class="t">${esc(x[0])}</div><div class="s">${['место', 'улица', 'дом'][x[3]]}</div></div>${me ? `<div class="eta">${fmtD(m)}</div>` : ''}</button>`).join('')
     + ss.map(([s, m]) => `<button class="row" data-stop="${s.i}"><div class="info"><div class="t">${esc(s.n)}</div><div class="chips">${refsAt(s).map(numHtml).join('')}</div></div>${me ? `<div class="eta">${fmtD(m)}</div>` : ''}</button>`).join('')
-    || '<div class="row"><div class="info"><div class="s">Ничего не нашлось</div></div></div>';
+    || `<div class="row"><div class="info"><div class="s">${nomiT && !nomi[raw] && navigator.onLine ? 'Ищу…' : 'Ничего не нашлось'}</div></div></div>`;
   el.classList.add('on');
 }
 
+function clearQ() { $('q').value = ''; $('qx').classList.remove('on'); $('q').blur(); }
 function locate(fly) {
   if (!navigator.geolocation) return;
   navigator.geolocation.getCurrentPosition(p => {
@@ -662,7 +689,7 @@ document.addEventListener('click', e => {
   if (t.id === 'setBtn') return go({ k: 'set' });
   if (t.dataset.fav != null) { const i = +t.dataset.fav, k = S.fav.indexOf(i); if (k < 0) S.fav.push(i); else S.fav.splice(k, 1); save(); t.classList.toggle('on', k < 0); toast(k < 0 ? 'В избранном' : 'Убрано из избранного'); return; }
   if (t.dataset.route != null) {
-    $('q').value = ''; $('q').blur();
+    clearQ();
     const ri = +t.dataset.route, r = D.routes[ri];
     let d = t.dataset.dir != null ? +t.dataset.dir : 0;
     const hi = t.dataset.hi ? +t.dataset.hi : null;
@@ -672,29 +699,52 @@ document.addEventListener('click', e => {
     if (t.hasAttribute('data-swap')) { view = v; drawRoute(); drawBuses(); return render(); }
     return go(v);
   }
-  if (t.dataset.stop != null) { $('q').value = ''; $('q').blur(); return go({ k: 'stop', s: +t.dataset.stop }); }
-  if (t.dataset.place != null) { const x = JSON.parse(t.dataset.place); $('q').value = ''; $('q').blur(); return go({ k: 'trip', to: { n: x[0], la: x[1], lo: x[2] }, opt: 0 }); }
+  if (t.dataset.stop != null) { clearQ(); return go({ k: 'stop', s: +t.dataset.stop }); }
+  if (t.dataset.place != null) { const x = JSON.parse(t.dataset.place); clearQ(); return go({ k: 'trip', to: { n: x[0], la: x[1], lo: x[2] }, opt: 0 }); }
   if (t.dataset.tripstop != null) { const s = D.stops[+t.dataset.tripstop]; return go({ k: 'trip', to: { n: s.n, la: s.la, lo: s.lo }, opt: 0 }); }
+  if (t.id === 'qx') { $('q').value = ''; $('q').focus(); search(); return; }
+  if (t.hasAttribute('data-pfav')) {
+    const i = placeIdx(view.to);
+    if (i < 0) { S.places.push({ n: view.to.n, la: view.to.la, lo: view.to.lo }); toast('В избранном'); } else { S.places.splice(i, 1); toast('Убрано из избранного'); }
+    save(); return render(true);
+  }
+  if (t.dataset.label != null) { const p = S.places[placeIdx(view.to)]; if (p) { p.label = p.label === t.dataset.label ? '' : t.dataset.label; save(); render(true); } return; }
+  if (t.dataset.pgo != null) { const p = S.places[+t.dataset.pgo]; clearQ(); return go({ k: 'trip', to: { n: p.n, la: p.la, lo: p.lo }, opt: 0 }); }
   if (t.dataset.opt != null) { view.opt = +t.dataset.opt; drawRoute(); drawBuses(); return render(true); }
   if (t.id === 'liveSave') { S.live = $('liveUrl').value.trim(); save(); fails = 0; $('liveUrl').blur(); toast('Сохранено'); poll(); return; }
-  if (t.id === 'bk') { const s = JSON.stringify({ fav: S.fav }); $('bkt').value = s; $('bkt').select(); try { navigator.clipboard.writeText(s); toast('Скопировано'); } catch (er) { toast('Выделено — скопируйте'); } return; }
-  if (t.id === 'rs') { try { S.fav = JSON.parse($('bkt').value).fav || []; save(); toast('Восстановлено'); } catch (er) { toast('Не похоже на копию'); } return; }
+  if (t.id === 'bk') { const s = JSON.stringify({ fav: S.fav, places: S.places }); $('bkt').value = s; $('bkt').select(); try { navigator.clipboard.writeText(s); toast('Скопировано'); } catch (er) { toast('Выделено — скопируйте'); } return; }
+  if (t.id === 'rs') { try { const j = JSON.parse($('bkt').value); S.fav = j.fav || []; S.places = j.places || []; save(); toast('Восстановлено'); } catch (er) { toast('Не похоже на копию'); } return; }
 });
 $('q').addEventListener('input', search);
+// Своё название избранного адреса — сохраняется по ходу набора
+document.addEventListener('input', e => { if (e.target.id === 'labelIn') { const p = S.places[placeIdx(view.to)]; if (p) { p.label = e.target.value.trim(); save(); } } });
 $('q').addEventListener('focus', () => { $('sheet').classList.add('mini'); placeSide(); search(); });
 $('q').addEventListener('blur', () => setTimeout(() => { if (!$('q').value) { $('res').classList.remove('on'); $('sheet').classList.remove('mini'); setTimeout(placeSide, 260); } }, 150));
-// Свайп по ручке: вверх — шире, вниз — уже
-let y0 = null;
-$('grab').addEventListener('touchstart', e => y0 = e.touches[0].clientY, { passive: true });
-$('grab').addEventListener('touchend', e => {
-  if (y0 == null) return;
-  const dy = e.changedTouches[0].clientY - y0, sh = $('sheet'); y0 = null;
-  if (Math.abs(dy) < 30) return;
-  if (dy < 0) { if (sh.classList.contains('mini')) sh.classList.remove('mini'); else sh.classList.add('big'); }
-  else { if (sh.classList.contains('big')) sh.classList.remove('big'); else sh.classList.add('mini'); }
-  e.preventDefault();
+// Панель тянется пальцем: за полоску, заголовок или содержимое, когда оно прокручено до верха
+let drag = null;
+$('sheet').addEventListener('touchstart', e => {
+  const body = $('body'), onTop = e.target.closest('#grab,.hd') || body.scrollTop <= 0;
+  drag = onTop ? { y: e.touches[0].clientY, dy: 0, on: false } : null;
+}, { passive: true });
+$('sheet').addEventListener('touchmove', e => {
+  if (!drag) return;
+  drag.dy = e.touches[0].clientY - drag.y;
+  // Вверх внутри списка — это прокрутка, а не перетаскивание
+  if (!drag.on && drag.dy < 0 && !e.target.closest('#grab,.hd')) { drag = null; return; }
+  if (!drag.on && Math.abs(drag.dy) > 6) { drag.on = true; $('sheet').classList.add('drag'); }
+  if (drag.on) { e.preventDefault(); $('sheet').style.transform = drag.dy > 0 ? `translateY(${drag.dy}px)` : ''; }
+}, { passive: false });
+$('sheet').addEventListener('touchend', () => {
+  if (!drag) return;
+  const sh = $('sheet'), { dy, on } = drag; drag = null;
+  sh.classList.remove('drag'); sh.style.transform = '';
+  if (!on) return;
+  if (dy > 50) { if (sh.classList.contains('big')) sh.classList.remove('big'); else sh.classList.add('mini'); }
+  else if (dy < -40) { if (sh.classList.contains('mini')) sh.classList.remove('mini'); else sh.classList.add('big'); }
   setTimeout(placeSide, 260);
 });
+// Свёрнутую панель раскрывает нажатие в любом её месте
+$('sheet').addEventListener('click', e => { const sh = $('sheet'); if (sh.classList.contains('mini') && e.target.id !== 'grab') { sh.classList.remove('mini'); setTimeout(placeSide, 260); } });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { poll(); locate(); } });
 
 fetch('data.json').then(r => r.json()).then(d => {
