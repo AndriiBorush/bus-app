@@ -135,6 +135,13 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 .hm .list{flex:1;min-width:0}
 .hm .rb{margin-top:11px}
 #live.hide{display:none}
+.row.from{background:var(--card);border:1px solid var(--line);border-radius:16px;margin-bottom:10px}
+.row.from .s{margin:0 0 1px}
+.chips.sm .num{min-width:30px;height:22px;font-size:12px;border-radius:6px;padding:0 5px}
+.chips.sm{gap:4px;margin-top:5px}
+.chev{flex:none;color:var(--muted);font-size:20px;width:20px;text-align:center}
+/* Панель закрыта — кнопки справа повыше, над полоской «Домой» и подписью карты */
+body.off #side{bottom:calc(env(safe-area-inset-bottom) + 64px)!important}
 .zooming .busmk{transition:none}
 /* Остановка вблизи: тёмная плашка с золотым автобусом, как иконка приложения */
 .stp{width:22px;height:22px;border-radius:7px;background:#14171e;border:1.5px solid rgba(232,201,156,.75);display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.5)}
@@ -182,7 +189,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <script>
 const KEY = 'bus-data';
 // Версия приложения — называть Андрею перед каждой публикацией
-const VERSION = '2.6';
+const VERSION = '2.7';
 // Адрес посредника (Cloudflare Worker); можно поменять в настройках
 const DEFAULT_LIVE = 'https://bus-proxy.andriiborush.workers.dev';
 // Метров по прямой в минуту — средняя скорость городского автобуса с остановками
@@ -348,17 +355,22 @@ function initMap() {
 // Издалека — золотые точки; вблизи — плашки с автобусом (только те, что на экране)
 // В маршруте видны только его остановки, тем же видом; пройденные выбранным автобусом — бледные
 function stopSize() {
-  const z = map.getZoom(), hide = view.k === 'trip';
-  const near = z >= 16 && !hide;
+  const z = map.getZoom(), near = z >= 16;
   let only = null, dim = new Set();
   if (view.k === 'route') {
     const d = D.routes[view.r].dirs[view.d], sb = selBus();
     only = new Set(d.st);
     if (sb) d.st.slice(0, sb.k).forEach(si => dim.add(si));
   }
+  // В поездке — остановки, мимо которых едем, тем же видом
+  if (view.k === 'trip') {
+    only = new Set();
+    const o = tripPlans()[view.opt];
+    if (o) o.legs.forEach(l => l.d.st.slice(l.k, l.j + 1).forEach(si => only.add(si)));
+  }
   const sel = view.k === 'stop' ? view.s : view.k === 'route' ? view.hi : null;
   D.stops.forEach(s => {
-    const vis = !hide && !near && (!only || only.has(s.i));
+    const vis = !near && (!only || only.has(s.i));
     if (!vis) { stopLayer.removeLayer(s.mk); return; }
     const o = dim.has(s.i) ? .35 : 1;
     s.mk.setStyle({ opacity: o, fillOpacity: o, radius: z >= 15 ? 4 : z >= 13 ? 3 : 2 });
@@ -432,11 +444,20 @@ function drawRoute() {
   if (sb) {
     // Пройденное — бледно, впереди — ярко со стрелками
     if (sb.k > 0) L.polyline(ridePath(d, 0, sb.k), { color: col, weight: 5, opacity: .25, interactive: false }).addTo(routeLayer);
-    const ahead = [[sb.b.la, sb.b.lo], ...ridePath(d, sb.k, last)];
+    const ahead = aheadPath(sb, last);
     line(ahead); arrows(ahead);
   } else { const p = ridePath(d, 0, last); line(p); arrows(p); }
   // Точки остановок — поверх линии
   stopLayer.eachLayer(m => m.bringToFront());
+}
+// Путь впереди автобуса: от ближайшей к нему точки линии, а не прямой до следующей остановки
+function aheadPath(sb, last) {
+  const d = sb.d, rest = ridePath(d, sb.k, last);
+  if (!d.g || sb.k === 0) return [[sb.b.la, sb.b.lo], ...rest];
+  const from = d.gi[sb.k - 1], to = d.gi[sb.k];
+  let bi = to, bm = 1e9;
+  for (let i = from; i <= to; i++) { const m = dist(d.g[i][0], d.g[i][1], sb.b.la, sb.b.lo); if (m < bm) { bm = m; bi = i; } }
+  return [[sb.b.la, sb.b.lo], ...d.g.slice(bi + 1, to), ...rest];
 }
 // Стрелки по линии через каждые ~350 м
 function arrows(p) {
@@ -451,6 +472,8 @@ function arrows(p) {
 }
 // Кусок линии маршрута между двумя остановками направления
 function ridePath(d, k, j) {
+  // Линия по улицам из data.json (tools/build_lines.py); без неё — старая линия перевозчика
+  if (d.g) return d.g.slice(d.gi[k], d.gi[j] + 1);
   const L0 = d.r.line, n = L0.length;
   if (n < 2) return d.st.slice(k, j + 1).map(si => [D.stops[si].la, D.stops[si].lo]);
   const near = s => { let bi = 0, bm = 1e9; L0.forEach((p, i) => { const m = dist(p[0], p[1], s.la, s.lo); if (m < bm) { bm = m; bi = i; } }); return bi; };
@@ -504,6 +527,7 @@ function drawTrip() {
     cur = [b.la, b.lo];
   });
   drawWalk(cur, [to.la, to.lo]);
+  stopLayer.eachLayer(m => m.bringToFront());
 }
 
 // ---------- Живые данные ----------
@@ -690,7 +714,8 @@ function tripPlans() {
 }
 function plan(from, to) {
   const R = 900;
-  const A = D.stops.map(s => [s, dist(from.la, from.lo, s.la, s.lo)]).filter(x => x[1] < R).sort((a, b) => a[1] - b[1]).slice(0, 14);
+  // Остановку посадки выбрали сами — едем только от неё
+  const A = from.stop != null ? [[D.stops[from.stop], 0]] : D.stops.map(s => [s, dist(from.la, from.lo, s.la, s.lo)]).filter(x => x[1] < R).sort((a, b) => a[1] - b[1]).slice(0, 14);
   const Bm = new Map(D.stops.map(s => [s.i, dist(to.la, to.lo, s.la, s.lo)]).filter(x => x[1] < R));
   const out = [];
   // Прямые варианты: сел — вышел
@@ -737,10 +762,28 @@ function nearStops(x) {
   if (!x.nb) x.nb = D.stops.filter(y => dist(x.la, x.lo, y.la, y.lo) < 180);
   return x.nb;
 }
+// Остановки рядом, откуда можно поехать: ближайшие ко мне (или к центру карты)
+function fromList() {
+  const p = me || (() => { const c = map.getCenter(); return { la: c.lat, lo: c.lng }; })();
+  const seen = {};
+  const ss = D.stops.map(s => [s, dist(p.la, p.lo, s.la, s.lo)]).sort((a, b) => a[1] - b[1])
+    .filter(([s]) => { const k = s.n + Math.round(s.la * 2000) + Math.round(s.lo * 2000); return !seen[k] && (seen[k] = 1); }).slice(0, 12);
+  return `<div class="list">${me ? `<button class="row" data-from="me"><span class="rb">${ICON.walk}</span><div class="info"><div class="t">От меня</div><div class="s">Лучшая остановка рядом — сама</div></div></button>` : ''}`
+    + ss.map(([s, m]) => `<button class="row" data-from="${s.i}"><div class="info"><div class="t">${esc(s.n)}</div>${nextName(s) ? `<div class="s">дальше: ${esc(nextName(s))}</div>` : ''}<div class="chips sm">${refsAt(s).map(numHtml).join('')}</div></div><div class="eta">${fmtD(m)}</div></button>`).join('') + '</div>';
+}
+// Следующая остановка после этой — чтобы отличать две стороны улицы с одним названием
+function nextName(s) {
+  const n = {};
+  s.on.forEach(([d, k]) => { const x = D.stops[d.st[k + 1]].n; if (x !== s.n) n[x] = (n[x] || 0) + 1; });
+  return Object.keys(n).sort((a, b) => n[b] - n[a])[0] || '';
+}
 function tripView() {
   const to = view.to, from = tripFrom(), pl = tripPlans();
   const fi = placeIdx(to), fp = S.places[fi];
-  let h = head(esc(fp && fp.label || to.n), fp && fp.label && !view.from ? esc(to.n) : `от: ${esc(from.n)}`, `<button class="rb${fp ? ' on' : ''}" data-pfav>${ICON.star}</button>`);
+  let h = head(esc(fp && fp.label || to.n), fp && fp.label ? esc(to.n) : '', `<button class="rb${fp ? ' on' : ''}" data-pfav>${ICON.star}</button>`);
+  // Откуда едем: по умолчанию — от меня, можно выбрать свою остановку
+  h += `<button class="row from" data-pickfrom><span class="rb">${ICON.pin}</span><div class="info"><div class="s">Откуда</div><div class="t">${esc(from.n)}</div></div><span class="chev">${view.pick ? '✕' : '›'}</span></button>`;
+  if (view.pick) return h + fromList();
   // Отмеченный адрес можно подписать: Дом, Работа или своё
   if (fp) h += `<div class="chips" style="margin:-4px 0 12px">${['Дом', 'Работа'].map(l => `<button class="btn" style="flex:none;height:32px;padding:0 12px;font-size:13px${fp.label === l ? ';border-color:#e8c99c;color:#e8c99c' : ''}" data-label="${l}">${l}</button>`).join('')}<input class="field" id="labelIn" style="flex:1;min-width:110px;height:32px;font-size:13px" placeholder="Своё название" value="${esc(fp.label && fp.label !== 'Дом' && fp.label !== 'Работа' ? fp.label : '')}"></div>`;
   if (!pl.length) return h + `<div class="empty">Не нашёл автобуса в пределах 900 м от начала и конца пути. Попробуйте другую точку.</div>`;
@@ -884,6 +927,12 @@ document.addEventListener('click', e => {
     return go({ k: 'trip', to: { n: hp.n, la: hp.la, lo: hp.lo }, from: { n: s.n, la: s.la, lo: s.lo }, opt: 0 });
   }
   if (t.dataset.pgo != null) { const p = S.places[+t.dataset.pgo]; clearQ(); return go({ k: 'trip', to: { n: p.n, la: p.la, lo: p.lo }, opt: 0 }); }
+  if (t.hasAttribute('data-pickfrom')) { view.pick = !view.pick; return render(); }
+  if (t.dataset.from != null) {
+    const s = D.stops[+t.dataset.from];
+    if (t.dataset.from === 'me') delete view.from; else view.from = { n: s.n, la: s.la, lo: s.lo, stop: s.i };
+    view.pick = false; view.opt = 0; drawRoute(); drawBuses(); return render();
+  }
   if (t.dataset.opt != null) { view.opt = +t.dataset.opt; drawRoute(); drawBuses(); return render(true); }
   if (t.id === 'liveSave') { S.live = $('liveUrl').value.trim(); save(); fails = 0; $('liveUrl').blur(); toast('Сохранено'); poll(); return; }
   if (t.id === 'bk') { const s = JSON.stringify({ fav: S.fav, places: S.places }); $('bkt').value = s; $('bkt').select(); try { navigator.clipboard.writeText(s); toast('Скопировано'); } catch (er) { toast('Выделено — скопируйте'); } return; }
