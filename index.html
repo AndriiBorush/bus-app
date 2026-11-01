@@ -116,14 +116,25 @@ body.off #side #panBtn{display:grid}
 .field{width:100%;height:44px;border-radius:12px;border:1px solid var(--line);background:var(--card);color:var(--text);padding:0 12px;font-size:15px;outline:none}
 textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 /* Метки на карте */
-.bus{position:relative;width:44px;height:44px;color:hsl(var(--h) 62% 56%)}
-/* Автобус сверху: кабина с лобовым стеклом смотрит туда, куда он едет */
-.bus svg{position:absolute;z-index:0;left:11px;top:0;width:22px;height:44px;transition:transform .8s ease;filter:drop-shadow(0 3px 5px rgba(0,0,0,.6))}
-/* Номер — плашкой сбоку, чтобы не закрывать кабину */
-.bus b{position:absolute;left:30px;top:-6px;min-width:24px;height:17px;padding:0 5px;border-radius:6px;background:#0b0d12;color:#fff;font-weight:800;font-size:11px;letter-spacing:-.2px;display:grid;place-items:center;border:1.5px solid currentColor;z-index:2;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.bus{position:relative;width:40px;height:40px;color:hsl(var(--h) 62% 56%)}
+/* Круг цвета маршрута с «носиком»: носик поворачивается туда, куда едет автобус */
+.bus svg{position:absolute;z-index:0;inset:0;width:40px;height:40px;transition:transform .8s ease;filter:drop-shadow(0 2px 4px rgba(0,0,0,.6))}
+/* Номер всегда ровно в центре круга и не поворачивается */
+.bus b{position:absolute;z-index:1;left:8px;top:8px;width:24px;height:24px;display:grid;place-items:center;color:#081018;font-weight:800;font-size:13px;letter-spacing:-.4px;line-height:1}
+.bus b.s{font-size:11px}
 .bus.park{opacity:.35}
+.bus.on{transform:scale(1.2)}
 .busmk{transition:transform 1.4s linear}
-.far .bus{transform:scale(.72)}
+.far .bus{transform:scale(.8)}
+.far .bus.on{transform:scale(1)}
+/* Стрелки вдоль линии маршрута — куда он едет */
+.arw{width:14px;height:14px;display:grid;place-items:center}
+.arw svg{width:11px;height:11px;color:#0b0d12}
+.stp.dim{opacity:.35}
+.hm{display:flex;gap:8px;align-items:flex-start}
+.hm .list{flex:1;min-width:0}
+.hm .rb{margin-top:11px}
+#live.hide{display:none}
 .zooming .busmk{transition:none}
 /* Остановка вблизи: тёмная плашка с золотым автобусом, как иконка приложения */
 .stp{width:22px;height:22px;border-radius:7px;background:#14171e;border:1.5px solid rgba(232,201,156,.75);display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.5)}
@@ -171,7 +182,7 @@ textarea.field{height:80px;padding:10px;font-size:12px;margin-top:8px}
 <script>
 const KEY = 'bus-data';
 // Версия приложения — называть Андрею перед каждой публикацией
-const VERSION = '2.5';
+const VERSION = '2.6';
 // Адрес посредника (Cloudflare Worker); можно поменять в настройках
 const DEFAULT_LIVE = 'https://bus-proxy.andriiborush.workers.dev';
 // Метров по прямой в минуту — средняя скорость городского автобуса с остановками
@@ -189,7 +200,9 @@ const ICON = {
   pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 21s-7-6.2-7-11.5A7 7 0 0 1 19 9.5C19 14.8 12 21 12 21z"/><circle cx="12" cy="9.5" r="2.5"/></svg>'
 };
 let P = null; // адреса и места — грузятся при первом поиске
-const BUS_TOP = '<svg viewBox="0 0 20 40"><rect x="1.5" y="1.5" width="17" height="37" rx="5" fill="currentColor" stroke="#fff" stroke-width="1.6"/><path d="M4 9.5V6.2C4 4.7 5 3.8 6.5 3.8h7c1.5 0 2.5.9 2.5 2.4v3.3z" fill="#0b0d12" opacity=".85"/><rect x="5" y="34" width="10" height="2" rx="1" fill="#0b0d12" opacity=".45"/></svg>';
+// Капля: круг с острым носиком вверх; поворачивается по курсу
+const BUS_PIN = '<svg viewBox="0 0 40 40"><path d="M20 2.5L29 10.6A13 13 0 1 1 11 10.6Z" fill="currentColor" stroke="#fff" stroke-width="2" stroke-linejoin="round"/></svg>';
+const CHEV = '<svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 8L6 4.5 9.5 8"/></svg>';
 let D, map, stopLayer, stopIcons, routeLayer, busLayer, meMarker;
 let S = load();
 let me = S.last || null;
@@ -333,18 +346,40 @@ function initMap() {
   drawMe();
 }
 // Издалека — золотые точки; вблизи — плашки с автобусом (только те, что на экране)
+// В маршруте видны только его остановки, тем же видом; пройденные выбранным автобусом — бледные
 function stopSize() {
-  const z = map.getZoom(), hide = view.k === 'route' || view.k === 'trip';
+  const z = map.getZoom(), hide = view.k === 'trip';
   const near = z >= 16 && !hide;
-  D.stops.forEach(s => s.mk.setStyle({ opacity: hide || near ? 0 : 1, fillOpacity: hide || near ? 0 : 1, radius: z >= 15 ? 4 : z >= 13 ? 3 : 2 }));
+  let only = null, dim = new Set();
+  if (view.k === 'route') {
+    const d = D.routes[view.r].dirs[view.d], sb = selBus();
+    only = new Set(d.st);
+    if (sb) d.st.slice(0, sb.k).forEach(si => dim.add(si));
+  }
+  const sel = view.k === 'stop' ? view.s : view.k === 'route' ? view.hi : null;
+  D.stops.forEach(s => {
+    const vis = !hide && !near && (!only || only.has(s.i));
+    if (!vis) { stopLayer.removeLayer(s.mk); return; }
+    const o = dim.has(s.i) ? .35 : 1;
+    s.mk.setStyle({ opacity: o, fillOpacity: o, radius: z >= 15 ? 4 : z >= 13 ? 3 : 2 });
+    if (!stopLayer.hasLayer(s.mk)) stopLayer.addLayer(s.mk);
+  });
   stopIcons.clearLayers();
   if (!near) return;
   const b = map.getBounds().pad(0.2);
   D.stops.forEach(s => {
-    if (!b.contains([s.la, s.lo])) return;
-    const sel = view.k === 'stop' && view.s === s.i;
-    L.marker([s.la, s.lo], { icon: L.divIcon({ className: '', html: `<div class="stp${sel ? ' sel' : ''}">${ICON.bus}</div>`, iconSize: sel ? [30, 30] : [22, 22] }), zIndexOffset: sel ? 400 : 0 }).addTo(stopIcons).on('click', () => go({ k: 'stop', s: s.i }));
+    if (!b.contains([s.la, s.lo]) || only && !only.has(s.i)) return;
+    const on = sel === s.i;
+    L.marker([s.la, s.lo], { icon: L.divIcon({ className: '', html: `<div class="stp${on ? ' sel' : ''}${dim.has(s.i) ? ' dim' : ''}">${ICON.bus}</div>`, iconSize: on ? [30, 30] : [22, 22] }), zIndexOffset: on ? 400 : 0 }).addTo(stopIcons).on('click', () => go({ k: 'stop', s: s.i }));
   });
+}
+// Автобус, на который нажали: он сам и номер следующей остановки на его направлении
+function selBus() {
+  if (view.k !== 'route' || !view.p) return null;
+  const d = D.routes[view.r].dirs[view.d], b = buses.find(x => x.p === view.p && x.d === d);
+  if (!b) return null;
+  const k = d.at.findIndex(a => a > b.at + 15);
+  return { b, d, k: k < 0 ? d.st.length - 1 : k };
 }
 function drawMe() {
   if (!me) return;
@@ -361,14 +396,16 @@ function drawBuses() {
     if (tr && !tr.has(b.route)) continue;
     seen[b.p] = 1;
     let m = busMarkers[b.p];
-    const html = `<div class="bus${b.park ? ' park' : ''}" style="--h:${b.route.h}">${BUS_TOP}<b>${esc(b.route.ref)}</b></div>`;
+    const on = view.k === 'route' && view.p === b.p;
+    const html = `<div class="bus${b.park ? ' park' : ''}${on ? ' on' : ''}" style="--h:${b.route.h}">${BUS_PIN}<b${b.route.ref.length > 2 ? ' class="s"' : ''}>${esc(b.route.ref)}</b></div>`;
     if (!m) {
-      m = busMarkers[b.p] = L.marker([b.la, b.lo], { icon: L.divIcon({ className: 'busmk', html, iconSize: [44, 44] }), zIndexOffset: 500 }).addTo(busLayer);
-      m.on('click', () => { const x = buses.find(y => y.p === b.p); if (x) go({ k: 'route', r: x.route.i, d: x.d.i }); });
+      m = busMarkers[b.p] = L.marker([b.la, b.lo], { icon: L.divIcon({ className: 'busmk', html, iconSize: [40, 40] }), zIndexOffset: 500 }).addTo(busLayer);
+      m.on('click', () => { const x = buses.find(y => y.p === b.p); if (x) go({ k: 'route', r: x.route.i, d: x.d.i, p: x.p }); });
     } else {
       m.setLatLng([b.la, b.lo]);
-      if (m._h !== html) m.setIcon(L.divIcon({ className: 'busmk', html, iconSize: [44, 44] }));
+      if (m._h !== html) { m.setIcon(L.divIcon({ className: 'busmk', html, iconSize: [40, 40] })); m._deg = null; }
     }
+    m.setZIndexOffset(on ? 800 : 500);
     m._h = html;
     // Поворачиваем автобус без перерисовки метки — так он плавно доворачивает
     const nose = m.getElement() && m.getElement().querySelector('svg');
@@ -384,12 +421,33 @@ function drawBuses() {
 function drawRoute() {
   routeLayer.clearLayers();
   stopSize();
-  if (view.k === 'stop' && map.getZoom() < 16) { const s = D.stops[view.s]; L.marker([s.la, s.lo], { icon: L.divIcon({ className: '', html: `<div class="stp sel">${ICON.bus}</div>`, iconSize: [30, 30] }), interactive: false }).addTo(routeLayer); }
+  const selS = view.k === 'stop' ? view.s : view.k === 'route' ? view.hi : null;
+  if (selS != null && map.getZoom() < 16) { const s = D.stops[selS]; L.marker([s.la, s.lo], { icon: L.divIcon({ className: '', html: `<div class="stp sel">${ICON.bus}</div>`, iconSize: [30, 30] }), interactive: false, zIndexOffset: 400 }).addTo(routeLayer); }
   if (view.k === 'trip') return drawTrip();
   if (view.k !== 'route') return;
-  const r = D.routes[view.r], d = r.dirs[view.d], col = `hsl(${r.h} 60% 55%)`;
-  L.polyline(r.line, { color: col, weight: 5, opacity: .85, interactive: false }).addTo(routeLayer);
-  d.st.forEach(si => { const s = D.stops[si]; L.circleMarker([s.la, s.lo], { radius: si === view.hi ? 7 : 5, weight: 2, color: col, fillColor: si === view.hi ? col : '#0b0d12', fillOpacity: 1 }).addTo(routeLayer).on('click', () => go({ k: 'stop', s: si })); });
+  // Только выбранное направление: так видно, по какой стороне и куда едет
+  const r = D.routes[view.r], d = r.dirs[view.d], col = `hsl(${r.h} 60% 55%)`, last = d.st.length - 1;
+  const line = p => L.polyline(p, { color: col, weight: 6, opacity: .9, interactive: false }).addTo(routeLayer);
+  const sb = selBus();
+  if (sb) {
+    // Пройденное — бледно, впереди — ярко со стрелками
+    if (sb.k > 0) L.polyline(ridePath(d, 0, sb.k), { color: col, weight: 5, opacity: .25, interactive: false }).addTo(routeLayer);
+    const ahead = [[sb.b.la, sb.b.lo], ...ridePath(d, sb.k, last)];
+    line(ahead); arrows(ahead);
+  } else { const p = ridePath(d, 0, last); line(p); arrows(p); }
+  // Точки остановок — поверх линии
+  stopLayer.eachLayer(m => m.bringToFront());
+}
+// Стрелки по линии через каждые ~350 м
+function arrows(p) {
+  let acc = 175;
+  for (let i = 1; i < p.length; i++) {
+    const a = p[i - 1], b = p[i], m = dist(a[0], a[1], b[0], b[1]);
+    acc += m;
+    if (acc < 350 || m < 8) continue;
+    acc = 0;
+    L.marker([(a[0] + b[0]) / 2, (a[1] + b[1]) / 2], { icon: L.divIcon({ className: '', html: `<div class="arw" style="transform:rotate(${bearing(a[0], a[1], b[0], b[1])}deg)">${CHEV}</div>`, iconSize: [14, 14] }), interactive: false }).addTo(routeLayer);
+  }
 }
 // Кусок линии маршрута между двумя остановками направления
 function ridePath(d, k, j) {
@@ -462,10 +520,14 @@ async function poll() {
     if (++fails >= 3) { buses = []; liveOk = false; }
   }
   setLive(); drawBuses(); refresh();
+  // Выбранный автобус проехал дальше — двигаем границу пройденного
+  if (view.k === 'route' && view.p) drawRoute();
 }
 function setLive() {
   const el = $('live'), n = buses.filter(b => !b.park).length;
   el.classList.toggle('on', liveOk && n > 0);
+  // Автобусы ходят — надпись не нужна; остаётся только «не ходят» и «нет связи»
+  el.classList.toggle('hide', !!S.live && liveOk && n > 0);
   el.querySelector('span').textContent = !S.live ? 'Живые автобусы не подключены' : !liveOk ? 'Нет связи с автобусами' : n ? `${n} автобусов на линии` : 'Сейчас автобусы не ходят';
 }
 
@@ -479,21 +541,43 @@ function open() {
   drawRoute(); drawBuses(); render();
   $('body').scrollTop = 0;
   // Ждём, пока панель раскроется, иначе карта уйдёт под неё
+  // Карта никогда не отдаляется: только сдвигается, если нужного не видно над панелью
   setTimeout(() => {
-    const pad = { paddingTopLeft: [20, 110], paddingBottomRight: [20, sheetH() + 20] };
     if (view.k === 'stop') { const s = D.stops[view.s]; showPoint(s.la, s.lo); }
-    if (view.k === 'route') map.fitBounds(L.latLngBounds(D.routes[view.r].line), pad);
-    if (view.k === 'trip') { const f = tripFrom(); map.fitBounds(L.latLngBounds([[f.la, f.lo], [view.to.la, view.to.lo]]), pad); }
+    if (view.k === 'route' && !view.p) { const d = D.routes[view.r].dirs[view.d]; keepSeen(d.st.map(si => [D.stops[si].la, D.stops[si].lo])); }
+    if (view.k === 'trip') { const f = tripFrom(); keepSeen([[f.la, f.lo], [view.to.la, view.to.lo]], true); }
     placeSide();
   }, 280);
 }
-// Остановка: масштаб не трогаем (только слишком издалека приближаем); видна над панелью — карта стоит на месте
-function showPoint(la, lo) {
-  const z = Math.max(map.getZoom(), 15), H = map.getSize().y, top = 110, bot = H - sheetH();
-  const p = map.latLngToContainerPoint([la, lo]);
-  if (z === map.getZoom() && p.y > top + 30 && p.y < bot - 30 && p.x > 30 && p.x < map.getSize().x - 30) return;
+// Видна ли точка между поиском и панелью
+function seen(p) {
+  const q = map.latLngToContainerPoint(p), W = map.getSize().x, bot = map.getSize().y - sheetH();
+  return q.x > 30 && q.x < W - 30 && q.y > 140 && q.y < bot - 30;
+}
+// Поставить точку в середину свободной части экрана, масштаб z
+function centerOn(la, lo, z) {
+  const H = map.getSize().y, top = 110, bot = H - sheetH();
   const c = map.project([la, lo], z).add([0, H / 2 - (top + bot) / 2]);
   map.setView(map.unproject(c, z), z);
+}
+// Остановка: масштаб не трогаем (только слишком издалека приближаем); видна над панелью — карта стоит на месте
+function showPoint(la, lo) {
+  const z = Math.max(map.getZoom(), 15);
+  if (z === map.getZoom() && seen([la, lo])) return;
+  centerOn(la, lo, z);
+}
+// Маршрут (видна хоть часть — не трогаем) или поездка (нужны обе точки); масштаб тот же
+function keepSeen(pts, all) {
+  if (all ? pts.every(seen) : pts.some(seen)) return;
+  const z = map.getZoom();
+  if (all) {
+    const b = L.latLngBounds(pts), fit = map.getBoundsZoom(b, false, L.point(60, 170 + sheetH()));
+    const c = fit >= z ? b.getCenter() : L.latLng(pts[0]);
+    return centerOn(c.lat, c.lng, z);
+  }
+  const m = map.getCenter();
+  const p = pts.reduce((a, q) => dist(m.lat, m.lng, q[0], q[1]) < dist(m.lat, m.lng, a[0], a[1]) ? q : a);
+  centerOn(p[0], p[1], z);
 }
 function sheetH() { const sh = $('sheet'); return sh.classList.contains('off') ? 0 : sh.getBoundingClientRect().height; }
 function placeSide() { $('side').style.bottom = (sheetH() + 12) + 'px'; }
@@ -547,10 +631,9 @@ function homeView() {
   // Дом всегда первым: одно нажатие — и маршрут домой отсюда
   const hi = homeIdx();
   const homeRow = hi >= 0 ? placeRow(S.places[hi], hi) : `<button class="row" data-nohome><span class="rb">${ICON.home}</span><div class="info"><div class="t">Дом</div><div class="s">Откройте свою остановку → «Это мой дом»</div></div></button>`;
-  // Без подписей разделов: сверху только крестик
-  h += `<div class="hd" style="margin-bottom:8px"><div class="tt"></div><button class="rb" data-close aria-label="Закрыть">${ICON.x}</button></div>`;
-  h += `<div class="list">${homeRow}${S.places.map((p, i) => i === hi ? '' : placeRow(p, i)).join('')}${favs.map(stopCard).join('')}</div>`;
-  h += `<div class="chips" style="margin-top:14px">${D.routes.map(r => `<button data-route="${r.i}">${numHtml(r)}</button>`).join('')}</div>`;
+  // Без подписей разделов; крестик — справа от списка, без пустой строки над ним
+  h += `<div class="hm"><div class="list">${homeRow}${S.places.map((p, i) => i === hi ? '' : placeRow(p, i)).join('')}${favs.map(stopCard).join('')}</div><button class="rb" data-close aria-label="Закрыть">${ICON.x}</button></div>`;
+  h += `<div class="chips" style="margin-top:12px">${D.routes.map(r => `<button data-route="${r.i}">${numHtml(r)}</button>`).join('')}</div>`;
   return h;
 }
 // Табло: номер и когда приедет; первым — время, рядом бледно следующий
@@ -575,7 +658,10 @@ function routeView() {
   const r = D.routes[view.r], d = r.dirs[view.d];
   // Только номер и направление; всё остальное — на карте
   const swap = r.dirs.length > 1 ? `<button class="rb" data-route="${r.i}" data-dir="${1 - view.d}" data-hi="${view.hi ?? ''}" data-swap aria-label="Обратно">${ICON.swap}</button>` : '';
-  return head(`${numHtml(r)}<span>→ ${esc(d.to)}</span>`, '', swap);
+  // Нажали на автобус — какая у него следующая остановка
+  const sb = selBus();
+  const sub = sb ? `Следующая: ${esc(D.stops[d.st[sb.k]].n)} · ${mins(Math.max(0, d.at[sb.k] - sb.b.at) / SPEED)}` : '';
+  return head(`${numHtml(r)}<span>→ ${esc(d.to)}</span>`, sub, swap);
 }
 // ---------- Поездка ----------
 function tripFrom() { if (view.from) return view.from; const p = me || S.last; return p ? { n: 'Я здесь', la: p.la, lo: p.lo } : (() => { const c = map.getCenter(); return { n: 'Центр карты', la: c.lat, lo: c.lng }; })(); }
@@ -746,7 +832,7 @@ function locate(fly) {
   navigator.geolocation.getCurrentPosition(p => {
     me = { la: p.coords.latitude, lo: p.coords.longitude };
     S.last = me; save(); drawMe();
-    if (fly) map.setView([me.la, me.lo], 16);
+    if (fly) map.setView([me.la, me.lo], Math.max(map.getZoom(), 16));
     refresh();
   }, () => { if (fly) toast('Нет доступа к геопозиции'); }, { enableHighAccuracy: true, maximumAge: 30000, timeout: 15000 });
 }
